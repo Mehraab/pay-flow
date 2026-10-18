@@ -1,0 +1,37 @@
+# Gradle
+.gradle/
+**/build/
+!src/**/build/
+gradle-app.setting
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.classpath
+.project
+.settings/
+bin/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Local env overrides
+.env
+.env.local
+
+# Planning/reference docs kept locally for this project but never pushed to the repo
+/ARCHITECTURE_AND_PLAN.md
+/PayFlow Console.html
+/PayFlow Architecture.html
+/PayFlow — Business Requirements Document.docx
+/PayFlow — Software Requirements Specification.docx
+.~lock.*#
