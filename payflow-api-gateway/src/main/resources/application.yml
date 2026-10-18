@@ -1,0 +1,12 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: payflow-api-gateway
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

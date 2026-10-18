@@ -1,0 +1,12 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: payflow-payment-command-service
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
