@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 
 class InMemoryCommandBusTest {
 
-  private record Greet(String name) implements Command {}
+  private record Greet(String name) implements Command<String> {}
 
   @Test
   void dispatchesToTheHandlerRegisteredForTheCommandType() {
@@ -28,7 +28,7 @@ class InMemoryCommandBusTest {
     CommandInterceptor outer =
         new CommandInterceptor() {
           @Override
-          public <C extends Command, R> R intercept(C command, CommandInvocation<C, R> next) {
+          public <C extends Command<R>, R> R intercept(C command, CommandInvocation<C, R> next) {
             trace.add("outer-before");
             R result = next.proceed(command);
             trace.add("outer-after");
@@ -38,7 +38,7 @@ class InMemoryCommandBusTest {
     CommandInterceptor inner =
         new CommandInterceptor() {
           @Override
-          public <C extends Command, R> R intercept(C command, CommandInvocation<C, R> next) {
+          public <C extends Command<R>, R> R intercept(C command, CommandInvocation<C, R> next) {
             trace.add("inner-before");
             R result = next.proceed(command);
             trace.add("inner-after");
