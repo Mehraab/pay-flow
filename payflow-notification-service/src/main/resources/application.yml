@@ -4,6 +4,9 @@ server:
 spring:
   application:
     name: payflow-notification-service
+  threads:
+    virtual:
+      enabled: true
 
 management:
   endpoints:

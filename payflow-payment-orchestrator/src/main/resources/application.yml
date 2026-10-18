@@ -4,6 +4,9 @@ server:
 spring:
   application:
     name: payflow-payment-orchestrator
+  threads:
+    virtual:
+      enabled: true
 
 management:
   endpoints:

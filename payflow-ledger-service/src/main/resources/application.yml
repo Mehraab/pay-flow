@@ -4,6 +4,9 @@ server:
 spring:
   application:
     name: payflow-ledger-service
+  threads:
+    virtual:
+      enabled: true
 
 management:
   endpoints:
