@@ -17,7 +17,10 @@ public abstract class Entity<ID> {
 
   @Override
   public final boolean equals(Object o) {
-    return o instanceof Entity<?> other && Objects.equals(id, other.id);
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    Entity<?> other = (Entity<?>) o;
+    return Objects.equals(id, other.id);
   }
 
   @Override

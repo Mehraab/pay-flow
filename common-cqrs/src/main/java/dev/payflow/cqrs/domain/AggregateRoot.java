@@ -31,6 +31,7 @@ public abstract class AggregateRoot<ID, E extends DomainEvent> {
 
   /** Records the event as uncommitted AND immediately mutates state via {@link #apply}. */
   protected final void raise(E event) {
+    Objects.requireNonNull(event, "event");
     uncommittedEvents.add(event);
     apply(event);
   }
@@ -52,7 +53,10 @@ public abstract class AggregateRoot<ID, E extends DomainEvent> {
 
   @Override
   public final boolean equals(Object o) {
-    return o instanceof AggregateRoot<?, ?> other && Objects.equals(id, other.id);
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    AggregateRoot<?, ?> other = (AggregateRoot<?, ?>) o;
+    return Objects.equals(id, other.id);
   }
 
   @Override
