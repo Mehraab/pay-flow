@@ -1,0 +1,16 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: payflow-payment-orchestrator
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+# PaymentWorkflow connects to Temporal Server starting Milestone 1 — see docker-compose.yml.
+temporal:
+  target: localhost:7233
