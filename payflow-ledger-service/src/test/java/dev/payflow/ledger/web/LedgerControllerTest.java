@@ -86,4 +86,27 @@ class LedgerControllerTest {
         .andExpect(jsonPath("$.accountName").value("Merchant Payable"))
         .andExpect(jsonPath("$.balanceMinor").value(20_779));
   }
+
+  @Test
+  void slugAccountBalanceFallsBackToTheUniqueMerchantAccountWhenNoPlatformAccountMatches()
+      throws Exception {
+    UUID merchantId = UUID.randomUUID();
+    LedgerAccount merchantPayable =
+        new LedgerAccount(
+            UUID.randomUUID(),
+            merchantId,
+            AccountType.LIABILITY,
+            "Merchant Payable",
+            NormalBalance.CREDIT,
+            20_779);
+    when(accountService.findPlatformAccount("merchant-payable")).thenReturn(Optional.empty());
+    when(accountService.findUniqueMerchantAccountByNameOrSlug("merchant-payable"))
+        .thenReturn(Optional.of(merchantPayable));
+
+    mockMvc
+        .perform(get("/accounts/{name}/balance", "merchant-payable"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.accountName").value("Merchant Payable"))
+        .andExpect(jsonPath("$.balanceMinor").value(20_779));
+  }
 }

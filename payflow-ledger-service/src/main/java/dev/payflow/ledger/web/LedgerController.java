@@ -32,7 +32,11 @@ public class LedgerController {
 
   @GetMapping("/accounts/{accountName}/balance")
   public AccountBalanceResponse platformAccountBalance(@PathVariable String accountName) {
-    LedgerAccount account = accountService.findPlatformAccount(accountName).orElseThrow();
+    LedgerAccount account =
+        accountService
+            .findPlatformAccount(accountName)
+            .or(() -> accountService.findUniqueMerchantAccountByNameOrSlug(accountName))
+            .orElseThrow();
     return new AccountBalanceResponse(account.accountName(), account.balanceMinor());
   }
 

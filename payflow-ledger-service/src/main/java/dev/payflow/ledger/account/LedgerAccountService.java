@@ -1,5 +1,6 @@
 package dev.payflow.ledger.account;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -49,6 +50,16 @@ public class LedgerAccountService {
 
   public Optional<LedgerAccount> findMerchantAccount(UUID merchantId, String accountName) {
     return repository.findMerchantAccount(merchantId, accountName);
+  }
+
+  /**
+   * Resolves a merchant-scoped account by name/slug without knowing which merchant — only safe
+   * when exactly one merchant has an account by that name; returns empty both when none match
+   * and when more than one does, rather than guessing.
+   */
+  public Optional<LedgerAccount> findUniqueMerchantAccountByNameOrSlug(String accountName) {
+    List<LedgerAccount> matches = repository.findMerchantAccountsByNameOrSlug(accountName);
+    return matches.size() == 1 ? Optional.of(matches.get(0)) : Optional.empty();
   }
 
   /** Posts a debit leg: balance moves with the amount when the account's normal side is DEBIT. */

@@ -18,10 +18,17 @@ public class LedgerAccountRepository {
     this.jdbc = jdbc;
   }
 
+  /**
+   * Matched by exact display name OR by a kebab-case slug of it (e.g. {@code "platform-bank"}
+   * matches {@code "Platform Bank"}), so callers don't need to know the exact display spelling.
+   */
+  private static final String NAME_OR_SLUG_MATCH =
+      "(LOWER(REPLACE(account_name, ' ', '-')) = LOWER(:name) OR account_name = :name)";
+
   public Optional<LedgerAccount> findPlatformAccount(String accountName) {
     List<LedgerAccount> rows =
         jdbc.query(
-            "SELECT * FROM ledger_accounts WHERE merchant_id IS NULL AND account_name = :name",
+            "SELECT * FROM ledger_accounts WHERE merchant_id IS NULL AND " + NAME_OR_SLUG_MATCH,
             new MapSqlParameterSource("name", accountName),
             this::mapRow);
     return rows.stream().findFirst();
@@ -30,12 +37,20 @@ public class LedgerAccountRepository {
   public Optional<LedgerAccount> findMerchantAccount(UUID merchantId, String accountName) {
     List<LedgerAccount> rows =
         jdbc.query(
-            "SELECT * FROM ledger_accounts WHERE merchant_id = :merchantId AND account_name = :name",
+            "SELECT * FROM ledger_accounts WHERE merchant_id = :merchantId AND " + NAME_OR_SLUG_MATCH,
             new MapSqlParameterSource()
                 .addValue("merchantId", merchantId)
                 .addValue("name", accountName),
             this::mapRow);
     return rows.stream().findFirst();
+  }
+
+  /** Every merchant-scoped account (across all merchants) matching this name or slug. */
+  public List<LedgerAccount> findMerchantAccountsByNameOrSlug(String accountName) {
+    return jdbc.query(
+        "SELECT * FROM ledger_accounts WHERE merchant_id IS NOT NULL AND " + NAME_OR_SLUG_MATCH,
+        new MapSqlParameterSource("name", accountName),
+        this::mapRow);
   }
 
   /**
