@@ -5,7 +5,7 @@ import dev.payflow.cqrs.bus.IdempotentCommand;
 import dev.payflow.paymentcommand.domain.PaymentId;
 import java.util.UUID;
 
-public record CreatePaymentCommand(UUID merchantId, Money amount, String idempotencyKey)
+public record CreatePaymentCommand(UUID merchantId, Money amount, String cardNumber, String idempotencyKey)
     implements IdempotentCommand<PaymentId> {
 
   @Override

@@ -21,6 +21,10 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
+# PaymentWorkflow is started here as a Temporal client immediately after a payment is created.
+temporal:
+  target: localhost:7233
+
 management:
   endpoints:
     web:

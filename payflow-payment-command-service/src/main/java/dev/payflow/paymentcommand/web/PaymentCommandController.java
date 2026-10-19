@@ -36,7 +36,7 @@ public class PaymentCommandController {
     Money amount = Money.of(request.amountMinor(), Currency.valueOf(request.currency()));
     PaymentId id =
         commandBus.dispatch(
-            new CreatePaymentCommand(request.merchantId(), amount, idempotencyKey));
+            new CreatePaymentCommand(request.merchantId(), amount, request.cardNumber(), idempotencyKey));
     return ResponseEntity.status(201).body(new CreatePaymentResponse(id.value()));
   }
 

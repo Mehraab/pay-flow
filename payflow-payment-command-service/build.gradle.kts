@@ -19,6 +19,10 @@ dependencies {
     // own starter — plain spring-kafka alone creates no KafkaTemplate bean.
     implementation("org.springframework.boot:spring-boot-starter-kafka")
     implementation("tools.jackson.core:jackson-databind")
+    implementation("io.temporal:temporal-sdk:1.26.1")
+    // Reuses the PaymentWorkflow contract (interface + input record) the orchestrator defines —
+    // this service is a Temporal client of that workflow, not its own second copy of the type.
+    implementation(project(":payflow-payment-orchestrator"))
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")

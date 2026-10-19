@@ -41,14 +41,17 @@ class PaymentCommandControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
-                        new CreatePaymentRequest(merchantId, 21400, "USD"))))
+                        new CreatePaymentRequest(merchantId, 21400, "USD", "4242424242424242"))))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.paymentId").value(generatedId.value().toString()));
 
     verify(commandBus)
         .dispatch(
             new CreatePaymentCommand(
-                merchantId, dev.payflow.common.domain.Money.of(21400, dev.payflow.common.domain.Currency.USD), "demo-001"));
+                merchantId,
+                dev.payflow.common.domain.Money.of(21400, dev.payflow.common.domain.Currency.USD),
+                "4242424242424242",
+                "demo-001"));
   }
 
   @Test
