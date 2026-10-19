@@ -1,0 +1,104 @@
+package dev.payflow.ledger.account;
+
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public class LedgerAccountRepository {
+
+  private final NamedParameterJdbcTemplate jdbc;
+
+  public LedgerAccountRepository(NamedParameterJdbcTemplate jdbc) {
+    this.jdbc = jdbc;
+  }
+
+  public Optional<LedgerAccount> findPlatformAccount(String accountName) {
+    List<LedgerAccount> rows =
+        jdbc.query(
+            "SELECT * FROM ledger_accounts WHERE merchant_id IS NULL AND account_name = :name",
+            new MapSqlParameterSource("name", accountName),
+            this::mapRow);
+    return rows.stream().findFirst();
+  }
+
+  public Optional<LedgerAccount> findMerchantAccount(UUID merchantId, String accountName) {
+    List<LedgerAccount> rows =
+        jdbc.query(
+            "SELECT * FROM ledger_accounts WHERE merchant_id = :merchantId AND account_name = :name",
+            new MapSqlParameterSource()
+                .addValue("merchantId", merchantId)
+                .addValue("name", accountName),
+            this::mapRow);
+    return rows.stream().findFirst();
+  }
+
+  /**
+   * Plain insert, no conflict handling — a Postgres UNIQUE constraint never fires for two rows
+   * that both have {@code merchant_id IS NULL}, since NULLs are never equal to each other, so
+   * {@code ON CONFLICT} on this column pair is meaningless for platform accounts. Callers must
+   * check {@link #findPlatformAccount} first; platform accounts are only ever seeded once, at
+   * startup, so this doesn't need to be race-safe the way merchant account creation does.
+   */
+  public LedgerAccount insertPlatformAccount(
+      AccountType type, String accountName, NormalBalance normalBalance) {
+    return jdbc.queryForObject(
+        """
+        INSERT INTO ledger_accounts (merchant_id, account_type, account_name, normal_balance)
+        VALUES (NULL, :type, :name, :normalBalance)
+        RETURNING *
+        """,
+        new MapSqlParameterSource()
+            .addValue("type", type.name())
+            .addValue("name", accountName)
+            .addValue("normalBalance", normalBalance.name()),
+        this::mapRow);
+  }
+
+  /**
+   * {@code merchant_id} is never null here, so the {@code (merchant_id, account_name)} UNIQUE
+   * constraint is real — {@code ON CONFLICT DO NOTHING} safely resolves a race between two
+   * concurrent first-transactions for the same new merchant. Returns empty when another
+   * transaction won the race; the caller falls back to {@link #findMerchantAccount}.
+   */
+  public Optional<LedgerAccount> insertMerchantAccountIfAbsent(
+      UUID merchantId, AccountType type, String accountName, NormalBalance normalBalance) {
+    List<LedgerAccount> rows =
+        jdbc.query(
+            """
+            INSERT INTO ledger_accounts (merchant_id, account_type, account_name, normal_balance)
+            VALUES (:merchantId, :type, :name, :normalBalance)
+            ON CONFLICT (merchant_id, account_name) DO NOTHING
+            RETURNING *
+            """,
+            new MapSqlParameterSource()
+                .addValue("merchantId", merchantId)
+                .addValue("type", type.name())
+                .addValue("name", accountName)
+                .addValue("normalBalance", normalBalance.name()),
+            this::mapRow);
+    return rows.stream().findFirst();
+  }
+
+  public void adjustBalance(UUID accountId, long deltaMinor) {
+    jdbc.update(
+        "UPDATE ledger_accounts SET balance_minor = balance_minor + :delta WHERE id = :id",
+        new MapSqlParameterSource().addValue("delta", deltaMinor).addValue("id", accountId));
+  }
+
+  private LedgerAccount mapRow(ResultSet rs, int rowNum) throws SQLException {
+    String merchantIdStr = rs.getString("merchant_id");
+    return new LedgerAccount(
+        UUID.fromString(rs.getString("id")),
+        merchantIdStr == null ? null : UUID.fromString(merchantIdStr),
+        AccountType.valueOf(rs.getString("account_type")),
+        rs.getString("account_name"),
+        NormalBalance.valueOf(rs.getString("normal_balance")),
+        rs.getLong("balance_minor"));
+  }
+}
