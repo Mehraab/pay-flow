@@ -17,3 +17,11 @@ management:
 # PaymentWorkflow connects to Temporal Server starting Milestone 1 — see docker-compose.yml.
 temporal:
   target: localhost:7233
+
+# Downstream services PaymentActivities calls synchronously (ARCHITECTURE_AND_PLAN.md §1.2).
+payflow:
+  orchestrator:
+    provider-gateway-url: http://localhost:8083
+    payment-command-url: http://localhost:8081
+    ledger-url: http://localhost:8085
+    notification-url: http://localhost:8086
