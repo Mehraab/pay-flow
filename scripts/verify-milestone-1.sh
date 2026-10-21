@@ -33,7 +33,7 @@ IDEMPOTENCY_KEY="demo-m1-$(date +%s)-$$"
 PG_USER="payflow"
 PG_PASSWORD="payflow"
 PG_HOST="localhost"
-PG_PORT="5432"
+PG_PORT="5433"
 
 POLL_ATTEMPTS=10
 POLL_INTERVAL_SECONDS=1
@@ -49,7 +49,7 @@ declare -A SERVICE_PORTS=(
 )
 
 declare -A INFRA_PORTS=(
-  [Postgres]=5432
+  [Postgres]=5433
   [Redis]=6379
   [Kafka]=9092
   [Temporal]=7233

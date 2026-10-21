@@ -8,7 +8,7 @@ spring:
     virtual:
       enabled: true
   datasource:
-    url: jdbc:postgresql://localhost:5432/webhook_db
+    url: jdbc:postgresql://localhost:5433/webhook_db
     username: payflow
     password: payflow
 
