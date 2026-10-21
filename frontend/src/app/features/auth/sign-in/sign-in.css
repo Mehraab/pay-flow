@@ -1,0 +1,173 @@
+:host {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.signin-brand {
+  background:
+    radial-gradient(circle at 15% 20%, rgba(126, 160, 255, 0.16), transparent 42%),
+    radial-gradient(circle at 80% 75%, rgba(126, 160, 255, 0.1), transparent 40%),
+    var(--rail-bg);
+  color: var(--rail-ink);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 44px;
+}
+
+.signin-form-side {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+
+.signin-card {
+  width: 100%;
+  max-width: 340px;
+}
+
+.signin-card h1 {
+  font-family: 'Manrope', sans-serif;
+  font-size: 23px;
+  font-weight: 800;
+  margin: 0 0 6px;
+}
+
+.signin-card p.lede {
+  color: var(--muted);
+  font-size: 13.5px;
+  margin: 0 0 26px;
+}
+
+.field {
+  margin-bottom: 16px;
+}
+
+.field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.field input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.field input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.role-toggle {
+  display: flex;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 3px;
+  gap: 3px;
+}
+
+.role-toggle button {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.role-toggle button.active {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.signin-error {
+  font-size: 12.5px;
+  color: var(--status-failed);
+  margin: -6px 0 16px;
+}
+
+.btn-primary {
+  width: 100%;
+  padding: 11px 14px;
+  border: none;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  margin-top: 6px;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.06);
+}
+
+.btn-primary:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.signin-note {
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--faint);
+  text-align: center;
+}
+
+.brand-mark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-mark svg {
+  display: block;
+}
+
+.brand-mark span {
+  font-family: 'Manrope', sans-serif;
+  font-weight: 800;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+}
+
+.signin-quote {
+  font-size: 15px;
+  line-height: 1.6;
+  max-width: 360px;
+  color: #c7cee0;
+}
+
+.signin-quote .who {
+  margin-top: 14px;
+  font-size: 12.5px;
+  color: var(--rail-muted);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+@media (max-width: 760px) {
+  :host {
+    grid-template-columns: 1fr;
+  }
+
+  .signin-brand {
+    display: none;
+  }
+}

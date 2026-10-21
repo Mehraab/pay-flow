@@ -1,0 +1,33 @@
+<div class="rail-env">
+  <span>Role</span>
+  <div class="env-toggle">
+    <button
+      id="roleMerchant"
+      type="button"
+      [class.active]="role() === 'MERCHANT'"
+      [disabled]="switching()"
+      (click)="switchTo('MERCHANT')"
+    >
+      Merchant
+    </button>
+    <button
+      id="roleOperator"
+      type="button"
+      [class.active]="role() === 'OPERATOR'"
+      [disabled]="switching()"
+      (click)="switchTo('OPERATOR')"
+    >
+      Operator
+    </button>
+  </div>
+</div>
+
+@if (role() === 'MERCHANT') {
+  <div class="rail-env" title="Coming soon — no environment concept exists in the backend yet">
+    <span>Environment</span>
+    <div class="env-toggle">
+      <button type="button" class="active" disabled>Test</button>
+      <button type="button" disabled>Live</button>
+    </div>
+  </div>
+}

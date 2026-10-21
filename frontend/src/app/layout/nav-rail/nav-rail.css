@@ -1,0 +1,52 @@
+nav.rail-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  color: var(--rail-muted);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  text-align: left;
+  width: 100%;
+  text-decoration: none;
+}
+
+.nav-item svg {
+  flex: none;
+  opacity: 0.85;
+}
+
+.nav-item:hover {
+  background: var(--rail-active-bg);
+  color: var(--rail-ink);
+}
+
+.nav-item.active {
+  background: var(--rail-active-bg);
+  color: var(--rail-ink);
+}
+
+.nav-item.active svg {
+  opacity: 1;
+  color: var(--rail-accent);
+}
+
+@media (max-width: 760px) {
+  nav.rail-nav {
+    flex-direction: row;
+  }
+
+  .nav-item span.label {
+    display: none;
+  }
+}
