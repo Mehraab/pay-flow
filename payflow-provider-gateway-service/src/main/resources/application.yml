@@ -4,6 +4,9 @@ server:
 spring:
   application:
     name: payflow-provider-gateway-service
+  threads:
+    virtual:
+      enabled: true
 
 management:
   endpoints:

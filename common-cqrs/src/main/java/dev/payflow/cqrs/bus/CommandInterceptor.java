@@ -7,5 +7,5 @@ package dev.payflow.cqrs.bus;
  */
 public interface CommandInterceptor {
 
-  <C extends Command, R> R intercept(C command, CommandInvocation<C, R> next);
+  <C extends Command<R>, R> R intercept(C command, CommandInvocation<C, R> next);
 }

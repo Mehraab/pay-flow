@@ -2,6 +2,7 @@ package dev.payflow.cqrs.bus;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Reference {@link CommandBus} implementation: resolves a {@link CommandHandler} by the
@@ -14,11 +15,11 @@ import java.util.Map;
  */
 public final class InMemoryCommandBus implements CommandBus {
 
-  private final Map<Class<? extends Command>, CommandHandler<? extends Command, ?>> handlers;
+  private final Map<Class<? extends Command<?>>, CommandHandler<?, ?>> handlers;
   private final List<CommandInterceptor> interceptors;
 
   public InMemoryCommandBus(
-      Map<Class<? extends Command>, CommandHandler<? extends Command, ?>> handlers,
+      Map<Class<? extends Command<?>>, CommandHandler<?, ?>> handlers,
       List<CommandInterceptor> interceptors) {
     this.handlers = Map.copyOf(handlers);
     this.interceptors = List.copyOf(interceptors);
@@ -26,14 +27,16 @@ public final class InMemoryCommandBus implements CommandBus {
 
   @Override
   @SuppressWarnings("unchecked")
-  public <C extends Command, R> R dispatch(C command) {
-    var handler = (CommandHandler<C, R>) handlers.get(command.getClass());
+  public <R> R dispatch(Command<R> command) {
+    Objects.requireNonNull(command, "command");
+
+    var handler = (CommandHandler<Command<R>, R>) handlers.get(command.getClass());
     if (handler == null) {
       throw new IllegalStateException(
           "No CommandHandler registered for " + command.getClass().getName());
     }
 
-    CommandInvocation<C, R> invocation = handler::handle;
+    CommandInvocation<Command<R>, R> invocation = handler::handle;
     for (int i = interceptors.size() - 1; i >= 0; i--) {
       var interceptor = interceptors.get(i);
       var next = invocation;

@@ -80,4 +80,14 @@ class AggregateRootTest {
 
     assertThat(a).isNotEqualTo(b);
   }
+
+  @Test
+  void aggregatesOfDifferentTypesAreNeverEqualEvenWithTheSameId() {
+    var id = UUID.randomUUID();
+    var counter = new TestCounterAggregate(id, 0);
+    var other = new AnotherTestAggregate(id, 0);
+
+    assertThat(counter).isNotEqualTo(other);
+    assertThat(other).isNotEqualTo(counter);
+  }
 }

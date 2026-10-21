@@ -13,8 +13,9 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Enforces AGENT_AND_DEV_GUIDELINES.md, Rule 1 (Domain Purity): zero framework dependencies
- * inside domain aggregates, entities, and value objects. This rule is mechanical, not a matter
- * of review discipline — a red build here blocks the merge.
+ * inside domain aggregates, entities, and value objects — no persistence (JPA/Hibernate), no
+ * Spring, no Kafka client, no JSON-binding annotations (Jackson). This rule is mechanical, not a
+ * matter of review discipline — a red build here blocks the merge.
  *
  * <p>Uses {@code importPackagesOf} (one representative class per package) rather than {@code
  * importPackages(String)} — the latter resolves classpath entries via the thread's context
@@ -38,7 +39,13 @@ class DomainPurityArchitectureTest {
             .should()
             .dependOnClassesThat()
             .resideInAnyPackage(
-                "jakarta.persistence..", "javax.persistence..", "org.springframework..", "org.apache.kafka..");
+                "jakarta.persistence..",
+                "javax.persistence..",
+                "org.hibernate..",
+                "org.springframework..",
+                "org.apache.kafka..",
+                "com.fasterxml.jackson..",
+                "tools.jackson..");
 
     rule.check(CLASSES);
   }

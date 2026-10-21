@@ -4,6 +4,26 @@ server:
 spring:
   application:
     name: payflow-payment-command-service
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: jdbc:postgresql://localhost:5433/payment_db
+    username: payflow
+    password: payflow
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+# PaymentWorkflow is started here as a Temporal client immediately after a payment is created.
+temporal:
+  target: localhost:7233
 
 management:
   endpoints:

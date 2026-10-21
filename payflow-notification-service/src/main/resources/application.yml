@@ -4,6 +4,13 @@ server:
 spring:
   application:
     name: payflow-notification-service
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: jdbc:postgresql://localhost:5433/webhook_db
+    username: payflow
+    password: payflow
 
 management:
   endpoints:

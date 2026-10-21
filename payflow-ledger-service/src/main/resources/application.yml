@@ -4,6 +4,20 @@ server:
 spring:
   application:
     name: payflow-ledger-service
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: jdbc:postgresql://localhost:5433/ledger_db
+    username: payflow
+    password: payflow
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: ledger-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
 
 management:
   endpoints:
