@@ -1,0 +1,362 @@
+/* You can add global styles to this file, and also import other style files */
+
+/* ============ DESIGN TOKENS (ported verbatim from PayFlow Console.html) ============ */
+:root {
+  --bg: #eef1f6;
+  --surface: #ffffff;
+  --surface-2: #f5f7fb;
+  --surface-3: #ebeef4;
+  --ink: #121826;
+  --muted: #5b6578;
+  --faint: #8992a3;
+  --border: #dee3ec;
+  --border-soft: #e8ebf1;
+  --accent: #2f5fe0;
+  --accent-ink: #ffffff;
+  --status-captured: #0e8f6b;
+  --status-pending: #ad6a14;
+  --status-failed: #c23b3b;
+  --status-refunded: #6b57c9;
+
+  --rail-bg: #10151f;
+  --rail-ink: #e7eaf2;
+  --rail-muted: #8690a6;
+  --rail-active-bg: #1c2436;
+  --rail-border: #232b3c;
+  --rail-accent: #7ea0ff;
+
+  --shadow-card: 0 1px 2px rgba(18, 24, 38, 0.04), 0 1px 1px rgba(18, 24, 38, 0.03);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #0a0d14;
+    --surface: #121723;
+    --surface-2: #161c2a;
+    --surface-3: #1b2232;
+    --ink: #e8ecf4;
+    --muted: #9199ac;
+    --faint: #6b7488;
+    --border: #283150;
+    --border-soft: #1e2538;
+    --accent: #6f93ff;
+    --accent-ink: #0a0d14;
+    --status-captured: #3fc793;
+    --status-pending: #e0a857;
+    --status-failed: #e2685f;
+    --status-refunded: #a89aeb;
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #0a0d14;
+  --surface: #121723;
+  --surface-2: #161c2a;
+  --surface-3: #1b2232;
+  --ink: #e8ecf4;
+  --muted: #9199ac;
+  --faint: #6b7488;
+  --border: #283150;
+  --border-soft: #1e2538;
+  --accent: #6f93ff;
+  --accent-ink: #0a0d14;
+  --status-captured: #3fc793;
+  --status-pending: #e0a857;
+  --status-failed: #e2685f;
+  --status-refunded: #a89aeb;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+
+.mono {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+.tab {
+  font-variant-numeric: tabular-nums;
+}
+button {
+  font-family: inherit;
+}
+a {
+  color: inherit;
+}
+
+/* ============ SHARED BITS (ported verbatim from PayFlow Console.html) ============ */
+/* Used by more than one feature view — kept global rather than duplicated per
+   component, matching the HTML source's own "shared bits" grouping. */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  box-shadow: var(--shadow-card);
+}
+
+.panel {
+  padding: 20px 22px;
+  margin-bottom: 18px;
+}
+.panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.panel-head h3 {
+  font-family: 'Manrope', sans-serif;
+  font-size: 15px;
+  margin: 0;
+  font-weight: 700;
+}
+.panel-head .hint {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+thead th {
+  text-align: left;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 700;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+tbody td {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 13px;
+  white-space: nowrap;
+}
+tbody tr:last-child td {
+  border-bottom: none;
+}
+tbody tr.row-link {
+  cursor: pointer;
+}
+tbody tr.row-link:hover {
+  background: var(--surface-2);
+}
+td.amount {
+  text-align: right;
+  font-weight: 600;
+}
+th.amount {
+  text-align: right;
+}
+.cell-id {
+  color: var(--muted);
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 4px 9px 4px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.status-pill .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.status-pill.captured {
+  background: color-mix(in srgb, var(--status-captured) 15%, transparent);
+  color: var(--status-captured);
+}
+.status-pill.captured .dot {
+  background: var(--status-captured);
+}
+.status-pill.pending {
+  background: color-mix(in srgb, var(--status-pending) 15%, transparent);
+  color: var(--status-pending);
+}
+.status-pill.pending .dot {
+  background: var(--status-pending);
+}
+.status-pill.failed {
+  background: color-mix(in srgb, var(--status-failed) 15%, transparent);
+  color: var(--status-failed);
+}
+.status-pill.failed .dot {
+  background: var(--status-failed);
+}
+.status-pill.refunded {
+  background: color-mix(in srgb, var(--status-refunded) 15%, transparent);
+  color: var(--status-refunded);
+}
+.status-pill.refunded .dot {
+  background: var(--status-refunded);
+}
+
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.chip {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 6px 13px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.chip.active {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+
+.btn-outline {
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  background: transparent;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-outline:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.btn-outline:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn-outline-danger {
+  border: 1px solid var(--status-failed);
+  color: var(--status-failed);
+  background: transparent;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-outline-danger:hover {
+  background: color-mix(in srgb, var(--status-failed) 10%, transparent);
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 10px;
+  font-family: inherit;
+  font-weight: 600;
+  text-decoration: none;
+}
+.back-link:hover {
+  color: var(--accent);
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+  color: var(--muted);
+  gap: 8px;
+}
+.empty-state b {
+  font-family: 'Manrope', sans-serif;
+  color: var(--ink);
+  font-size: 15px;
+}
+
+/* Banner + skeleton-loading are new utility classes (not in the static HTML, which had
+   no async states) — styled consistently with the ported design tokens above. */
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 16px;
+  border-radius: 10px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+.banner.error {
+  background: color-mix(in srgb, var(--status-failed) 12%, transparent);
+  color: var(--status-failed);
+  border: 1px solid color-mix(in srgb, var(--status-failed) 35%, transparent);
+}
+.banner.info {
+  background: color-mix(in srgb, var(--status-pending) 12%, transparent);
+  color: var(--status-pending);
+  border: 1px solid color-mix(in srgb, var(--status-pending) 35%, transparent);
+}
+.banner button {
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  border-radius: 7px;
+  padding: 5px 12px;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+  flex: none;
+}
+
+.skeleton-bar {
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 37%, var(--surface-2) 63%);
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+}
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}

@@ -1,0 +1,144 @@
+<a class="back-link" routerLink="/transactions">&larr; Back to Transactions</a>
+
+@if (isLoading()) {
+  <div class="detail-head">
+    <div>
+      <div class="skeleton-bar" style="width: 140px; height: 30px"></div>
+      <div class="skeleton-bar" style="width: 220px; height: 14px; margin-top: 8px"></div>
+    </div>
+  </div>
+}
+
+@if (hasError()) {
+  <div class="banner error">
+    <span>{{ errorMessage() }}</span>
+    <button type="button" (click)="load()">Retry</button>
+  </div>
+}
+
+@if (isSuccess()) {
+  @let p = payment()!;
+
+  <div class="detail-head">
+    <div>
+      <div class="detail-amount tab">{{ formatMoney(p.amountMinor, p.currency) }}</div>
+      <div class="detail-sub mono">{{ p.paymentId }}</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px">
+      <span class="status-pill {{ statusPillVariant(p.status) }}">
+        <span class="dot"></span>{{ statusLabel(p.status) }}
+      </span>
+      @if (canRefund()) {
+        <button class="btn-outline-danger" type="button" (click)="refund()">Refund</button>
+      }
+    </div>
+  </div>
+
+  @if (refundStatusMessage()) {
+    <div class="banner info">{{ refundStatusMessage() }}</div>
+  }
+}
+
+<!-- The timeline is a separate STUB(BE-05) call — it loads/fails independently of the
+     payment record above, so it's not gated on isSuccess(). -->
+<div class="detail-grid">
+  <div class="card panel">
+    <div class="panel-head"><h3>Timeline</h3></div>
+
+    @if (timelineLoading()) {
+      <div class="skeleton-bar" style="width: 100%; height: 16px; margin-bottom: 14px"></div>
+      <div class="skeleton-bar" style="width: 100%; height: 16px; margin-bottom: 14px"></div>
+      <div class="skeleton-bar" style="width: 60%; height: 16px"></div>
+    }
+    @if (timelineHasError()) {
+      <div class="banner error">
+        <span>{{ timelineErrorMessage() }}</span>
+        <button type="button" (click)="loadTimeline()">Retry</button>
+      </div>
+    }
+    @if (timelineEmpty()) {
+      <div class="empty-state">
+        <span>No events recorded yet.</span>
+      </div>
+    }
+    @if (!timelineLoading() && !timelineHasError() && !timelineEmpty()) {
+      <div class="timeline">
+        @for (step of timeline(); track step.label) {
+          <div
+            class="tstep"
+            [class.done]="step.status === 'done'"
+            [class.failed]="step.status === 'failed'"
+            [class.pending]="step.status === 'pending'"
+          >
+            <div class="rail-col">
+              <div class="node"></div>
+              <div class="thread"></div>
+            </div>
+            <div class="tbody">
+              <div class="tlabel">{{ step.label }}</div>
+              <div class="ttime">{{ step.timestamp | date: 'MMM d, h:mm:ss a' }}</div>
+              @if (step.note) {
+                <div class="tnote">{{ step.note }}</div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    }
+  </div>
+
+  @if (isSuccess()) {
+    @let p = payment()!;
+    <div>
+      <div class="card panel">
+        <div class="panel-head"><h3>Details</h3></div>
+        <dl class="meta-list">
+          <div>
+            <dt>Customer</dt>
+            <dd>{{ p.customerName ?? '—' }}</dd>
+          </div>
+          <div>
+            <dt>Payment method</dt>
+            <dd>{{ p.method ?? '—' }}</dd>
+          </div>
+          <div>
+            <dt>Provider</dt>
+            <dd class="mono">{{ p.providerRef ?? '—' }}</dd>
+          </div>
+          <div>
+            <dt>Created</dt>
+            <dd>{{ p.createdAt ? (p.createdAt | date: 'medium') : '—' }}</dd>
+          </div>
+          <div>
+            <dt>Idempotency key</dt>
+            <dd class="mono" style="font-size: 12px">{{ p.idempotencyKey ?? '—' }}</dd>
+          </div>
+          <div>
+            <dt>Currency</dt>
+            <dd>{{ p.currency }}</dd>
+          </div>
+          @if (p.declineReason) {
+            <div>
+              <dt>Decline reason</dt>
+              <dd>{{ p.declineReason }}</dd>
+            </div>
+          }
+        </dl>
+      </div>
+
+      <div class="card panel">
+        <div class="panel-head"><h3>Raw event</h3></div>
+        <details class="raw" open>
+          <summary>payment.updated payload (mocked — no real webhook schema yet)</summary>
+          <pre class="mono">{{ rawEventJson() }}</pre>
+        </details>
+      </div>
+    </div>
+  } @else if (!isLoading()) {
+    <div class="card panel">
+      <div class="empty-state">
+        <span>Payment details unavailable.</span>
+      </div>
+    </div>
+  }
+</div>

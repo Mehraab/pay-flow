@@ -2,6 +2,9 @@ package dev.payflow.ledger.posting;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.sql.Types;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -27,6 +30,61 @@ public class LedgerEntryRepository {
         """,
         new MapSqlParameterSource("ref", transactionRef),
         this::mapRow);
+  }
+
+  /**
+   * BR-12 ledger integrity (§3): the cross-row aggregate a SQL CHECK constraint can't express —
+   * see {@code GET /operator/ledger/integrity}. Note that for THIS schema, where every single
+   * row already carries one debit leg and one credit leg of the identical {@code amount_minor},
+   * this sum is mathematically always equal to {@link #sumTotalCredits()} — the real value of
+   * this pair of queries is as a standing, re-runnable assertion of that invariant, not as a
+   * check capable of catching an unbalanced row that the schema itself cannot represent anyway.
+   */
+  public long sumTotalDebits() {
+    Long sum = jdbc.queryForObject("SELECT COALESCE(SUM(amount_minor), 0) FROM ledger_entries", new MapSqlParameterSource(), Long.class);
+    return sum != null ? sum : 0L;
+  }
+
+  public long sumTotalCredits() {
+    Long sum = jdbc.queryForObject("SELECT COALESCE(SUM(amount_minor), 0) FROM ledger_entries", new MapSqlParameterSource(), Long.class);
+    return sum != null ? sum : 0L;
+  }
+
+  /**
+   * BE-06: platform-wide ledger feed, newest first. {@code since == null} means no lower bound.
+   * The explicit {@code CAST(... AS timestamptz)} is required, not decorative: under Postgres's
+   * extended query protocol, a bare {@code $1 IS NULL} gives the parser no type to infer for that
+   * placeholder (every type satisfies {@code IS NULL}) and it fails with "could not determine
+   * data type of parameter $1" — the JDBC-side {@code Types.TIMESTAMP} hint on the bind value
+   * doesn't reach Postgres's parse step, which runs before any value is bound.
+   */
+  public List<LedgerEntry> findEntries(Instant since, int offset, int limit) {
+    return jdbc.query(
+        """
+        SELECT id, transaction_ref, debit_account_id, credit_account_id, amount_minor, posted_at
+        FROM ledger_entries
+        WHERE (CAST(:since AS timestamptz) IS NULL OR posted_at >= CAST(:since AS timestamptz))
+        ORDER BY posted_at DESC
+        LIMIT :limit OFFSET :offset
+        """,
+        new MapSqlParameterSource()
+            .addValue("since", since != null ? Timestamp.from(since) : null, Types.TIMESTAMP)
+            .addValue("limit", limit)
+            .addValue("offset", offset),
+        this::mapRow);
+  }
+
+  public long countEntries(Instant since) {
+    Long count =
+        jdbc.queryForObject(
+            """
+            SELECT COUNT(*) FROM ledger_entries
+            WHERE (CAST(:since AS timestamptz) IS NULL OR posted_at >= CAST(:since AS timestamptz))
+            """,
+            new MapSqlParameterSource()
+                .addValue("since", since != null ? Timestamp.from(since) : null, Types.TIMESTAMP),
+            Long.class);
+    return count != null ? count : 0L;
   }
 
   public boolean existsForTransactionRef(String transactionRef) {

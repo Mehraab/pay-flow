@@ -32,6 +32,15 @@ public class WebhookEndpointRepository {
     return rows.stream().findFirst();
   }
 
+  public Optional<WebhookEndpoint> findById(UUID id) {
+    List<WebhookEndpoint> rows =
+        jdbc.query(
+            "SELECT id, merchant_id, url, signing_secret, active FROM webhook_endpoints WHERE id = :id",
+            new MapSqlParameterSource("id", id),
+            this::mapRow);
+    return rows.stream().findFirst();
+  }
+
   private WebhookEndpoint mapRow(ResultSet rs, int rowNum) throws SQLException {
     return new WebhookEndpoint(
         UUID.fromString(rs.getString("id")),

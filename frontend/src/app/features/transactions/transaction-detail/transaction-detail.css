@@ -1,0 +1,160 @@
+/* Card/panel/status-pill/btn-outline-danger/back-link/empty-state/banner/skeleton-bar
+   primitives live in the global stylesheet. This file only has detail-view-specific
+   layout: the amount header, the two-column grid, the timeline, and the raw-event panel. */
+
+.detail-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.detail-amount {
+  font-family: 'Manrope', sans-serif;
+  font-size: 30px;
+  font-weight: 800;
+}
+
+.detail-sub {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.meta-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 18px;
+  margin: 0;
+}
+
+.meta-list div dt {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 3px;
+}
+
+.meta-list div dd {
+  margin: 0;
+  font-size: 13.5px;
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+}
+
+.tstep {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: 12px;
+}
+
+.tstep .rail-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.tstep .node {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  margin-top: 3px;
+}
+
+.tstep.done .node {
+  background: var(--status-captured);
+  border-color: var(--status-captured);
+}
+
+.tstep.failed .node {
+  background: var(--status-failed);
+  border-color: var(--status-failed);
+}
+
+.tstep.pending .node {
+  background: var(--surface);
+  border-color: var(--status-pending);
+}
+
+.tstep .thread {
+  flex: 1;
+  width: 1.5px;
+  background: var(--border);
+  min-height: 26px;
+}
+
+.tstep:last-child .thread {
+  display: none;
+}
+
+.tstep .tbody {
+  padding-bottom: 22px;
+}
+
+.tstep .tlabel {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.tstep.failed .tlabel {
+  color: var(--status-failed);
+}
+
+.tstep .ttime {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.tstep .tnote {
+  font-size: 12px;
+  color: var(--status-failed);
+  margin-top: 3px;
+}
+
+details.raw {
+  margin-top: 4px;
+}
+
+details.raw summary {
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 6px 0;
+}
+
+details.raw pre {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 14px;
+  font-size: 12px;
+  overflow-x: auto;
+  color: var(--ink);
+  line-height: 1.6;
+}
+
+@media (max-width: 760px) {
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .meta-list {
+    grid-template-columns: 1fr;
+  }
+}

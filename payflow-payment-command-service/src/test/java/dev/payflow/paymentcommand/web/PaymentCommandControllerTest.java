@@ -42,7 +42,7 @@ class PaymentCommandControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
-                        new CreatePaymentRequest(merchantId, 21400, "USD", "4242424242424242", null))))
+                        new CreatePaymentRequest(merchantId, 21400, "USD", "4242424242424242", null, null))))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.paymentId").value(generatedId.value().toString()));
 
@@ -53,7 +53,8 @@ class PaymentCommandControllerTest {
                 dev.payflow.common.domain.Money.of(21400, dev.payflow.common.domain.Currency.USD),
                 "4242424242424242",
                 false,
-                "demo-001"));
+                "demo-001",
+                null));
   }
 
   @Test
@@ -70,7 +71,7 @@ class PaymentCommandControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
-                        new CreatePaymentRequest(merchantId, 21400, "USD", "4242424242424242", null))))
+                        new CreatePaymentRequest(merchantId, 21400, "USD", "4242424242424242", null, null))))
         .andExpect(status().isCreated());
 
     verify(commandBus)
@@ -80,7 +81,8 @@ class PaymentCommandControllerTest {
                 dev.payflow.common.domain.Money.of(21400, dev.payflow.common.domain.Currency.USD),
                 "4242424242424242",
                 true,
-                "demo-002"));
+                "demo-002",
+                null));
   }
 
   @Test

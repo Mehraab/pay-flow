@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "payflow-frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "start", "--prefix", "frontend", "--", "--port", "4200"],
+      "port": 4200
+    }
+  ]
+}

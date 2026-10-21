@@ -1,0 +1,65 @@
+<div class="signin-brand">
+  <div class="brand-mark">
+    <svg width="26" height="26" viewBox="0 0 26 26">
+      <rect x="1" y="1" width="24" height="24" rx="7" fill="none" stroke="#7EA0FF" stroke-width="1.6" />
+      <path
+        d="M8 17 L13 8 L18 17"
+        fill="none"
+        stroke="#7EA0FF"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+    <span style="color: #e7eaf2">PayFlow</span>
+  </div>
+  <div class="signin-quote">
+    "Every charge goes through the same gateway, the same ledger, the same webhook — whether it's test
+    traffic or a live customer."
+    <div class="who">— Console · Merchant Dashboard</div>
+  </div>
+  <div style="font-size: 11.5px; color: #5f6b85; font-family: 'JetBrains Mono', monospace">
+    payflow.dev/console
+  </div>
+</div>
+
+<div class="signin-form-side">
+  <form class="signin-card" (submit)="$event.preventDefault(); submit()">
+    <h1>Sign in to PayFlow</h1>
+    <p class="lede">Issues a real access token against the Gateway</p>
+
+    <div class="field">
+      <label>Role</label>
+      <div class="role-toggle">
+        <button type="button" [class.active]="role() === 'MERCHANT'" (click)="selectRole('MERCHANT')">
+          Merchant
+        </button>
+        <button type="button" [class.active]="role() === 'OPERATOR'" (click)="selectRole('OPERATOR')">
+          Operator
+        </button>
+      </div>
+    </div>
+
+    @if (role() === 'MERCHANT') {
+      <div class="field">
+        <label for="inMerchantId">Merchant ID (optional)</label>
+        <input
+          id="inMerchantId"
+          type="text"
+          placeholder="Leave blank to use a generated one"
+          [value]="merchantId()"
+          (input)="onMerchantIdInput($any($event.target).value)"
+        />
+      </div>
+    }
+
+    @if (error()) {
+      <p class="signin-error">{{ error() }}</p>
+    }
+
+    <button class="btn-primary" type="submit" [disabled]="loading()">
+      {{ loading() ? 'Signing in…' : 'Continue' }}
+    </button>
+    <p class="signin-note">Issues a token via POST /auth/token — no password model exists yet.</p>
+  </form>
+</div>

@@ -7,12 +7,25 @@ spring:
   threads:
     virtual:
       enabled: true
+  data:
+    redis:
+      host: localhost
+      port: 6379
 
 # Downstream services this gateway forwards to (ARCHITECTURE_AND_PLAN.md service topology).
 payflow:
   gateway:
     payment-command-url: http://localhost:8081
     payment-query-url: http://localhost:8082
+    ledger-url: http://localhost:8085
+    provider-gateway-url: http://localhost:8083
+    orchestrator-url: http://localhost:8084
+    notification-url: http://localhost:8086
+  security:
+    jwt:
+      secret: "payflow-dev-jwt-secret-change-me-32chars+"
+      access-token-ttl-seconds: 900
+      refresh-token-ttl-seconds: 604800
 
 management:
   endpoints:

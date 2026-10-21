@@ -1,0 +1,34 @@
+<aside class="rail">
+  <div class="rail-head">
+    <svg width="24" height="24" viewBox="0 0 26 26">
+      <rect x="1" y="1" width="24" height="24" rx="7" fill="none" stroke="#7EA0FF" stroke-width="1.6" />
+      <path
+        d="M8 17 L13 8 L18 17"
+        fill="none"
+        stroke="#7EA0FF"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+    <span>PayFlow</span>
+  </div>
+
+  <app-role-switcher />
+  <app-nav-rail />
+
+  <div class="rail-foot">
+    <div class="avatar">{{ roleLabel() === 'Operator' ? 'OP' : 'ME' }}</div>
+    <div class="who">
+      <b>{{ roleLabel() }}</b>
+      <small>{{ identityLabel() }}</small>
+    </div>
+  </div>
+</aside>
+
+<div class="shell">
+  <app-header-bar />
+  <main class="content">
+    <router-outlet />
+  </main>
+</div>

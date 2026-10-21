@@ -1,0 +1,23 @@
+<div>
+  <h2>{{ title() }}</h2>
+  @if (sub()) {
+    <div class="sub">{{ sub() }}</div>
+  }
+</div>
+<div class="topbar-right">
+  @if (isTransactionsRoute()) {
+    <div class="search">
+      <svg width="15" height="15" viewBox="0 0 15 15">
+        <circle cx="6.5" cy="6.5" r="5" fill="none" stroke="currentColor" stroke-width="1.4" />
+        <line x1="10.2" y1="10.2" x2="14" y2="14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+      </svg>
+      <input
+        type="text"
+        placeholder="Search by transaction ID or customer"
+        [value]="searchQueryService.query()"
+        (input)="onSearchInput($any($event.target).value)"
+      />
+    </div>
+  }
+  <div class="avatar" style="width: 28px; height: 28px; font-size: 11px">{{ initials() }}</div>
+</div>

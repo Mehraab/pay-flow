@@ -182,4 +182,61 @@ class LedgerControllerTest {
         .perform(get("/accounts/{merchantId}/{name}/balance", merchantId, "merchant-payable"))
         .andExpect(status().isNotFound());
   }
+
+  @Test
+  void ledgerIntegrityReturnsBalancedWhenDebitsAndCreditsMatch() throws Exception {
+    when(postingService.sumTotalDebits()).thenReturn(1_000_000L);
+    when(postingService.sumTotalCredits()).thenReturn(1_000_000L);
+
+    mockMvc
+        .perform(get("/operator/ledger/integrity"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.totalDebitsMinor").value(1_000_000))
+        .andExpect(jsonPath("$.totalCreditsMinor").value(1_000_000))
+        .andExpect(jsonPath("$.balanced").value(true));
+  }
+
+  @Test
+  void ledgerIntegrityReturnsUnbalancedWhenDebitsAndCreditsDiffer() throws Exception {
+    when(postingService.sumTotalDebits()).thenReturn(1_000_000L);
+    when(postingService.sumTotalCredits()).thenReturn(999_999L);
+
+    mockMvc.perform(get("/operator/ledger/integrity")).andExpect(jsonPath("$.balanced").value(false));
+  }
+
+  @Test
+  void listLedgerEntriesReturnsAPageWithTheStatusFieldDefaultedToPosted() throws Exception {
+    UUID debitAccountId = UUID.randomUUID();
+    UUID creditAccountId = UUID.randomUUID();
+    Instant postedAt = Instant.parse("2026-01-01T00:00:00Z");
+    LedgerEntry entry =
+        new LedgerEntry(UUID.randomUUID(), "demo-ref", debitAccountId, creditAccountId, 20_779, postedAt);
+    when(postingService.findEntriesPaged(null, 0, 20)).thenReturn(List.of(entry));
+    when(postingService.countEntriesSince(null)).thenReturn(1L);
+
+    mockMvc
+        .perform(get("/operator/ledger/entries"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content.length()").value(1))
+        .andExpect(jsonPath("$.content[0].transactionRef").value("demo-ref"))
+        .andExpect(jsonPath("$.content[0].status").value("POSTED"))
+        .andExpect(jsonPath("$.page").value(0))
+        .andExpect(jsonPath("$.size").value(20))
+        .andExpect(jsonPath("$.totalElements").value(1))
+        .andExpect(jsonPath("$.totalPages").value(1));
+  }
+
+  @Test
+  void listLedgerEntriesForwardsSincePageAndSizeParams() throws Exception {
+    Instant since = Instant.parse("2026-01-01T00:00:00Z");
+    when(postingService.findEntriesPaged(since, 2, 5)).thenReturn(List.of());
+    when(postingService.countEntriesSince(since)).thenReturn(0L);
+
+    mockMvc
+        .perform(get("/operator/ledger/entries").param("since", since.toString()).param("page", "2").param("size", "5"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content").isEmpty());
+
+    verify(postingService).findEntriesPaged(since, 2, 5);
+  }
 }

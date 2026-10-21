@@ -41,7 +41,12 @@ public class PaymentCommandController {
     PaymentId id =
         commandBus.dispatch(
             new CreatePaymentCommand(
-                request.merchantId(), amount, request.cardNumber(), forceLedgerFailure, idempotencyKey));
+                request.merchantId(),
+                amount,
+                request.cardNumber(),
+                forceLedgerFailure,
+                idempotencyKey,
+                request.customer()));
     return ResponseEntity.status(201).body(new CreatePaymentResponse(id.value()));
   }
 

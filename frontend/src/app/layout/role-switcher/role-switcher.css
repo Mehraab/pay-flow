@@ -1,0 +1,54 @@
+:host {
+  display: contents;
+}
+
+.rail-env {
+  margin: 0 6px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  background: var(--rail-active-bg);
+  border: 1px solid var(--rail-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rail-env span {
+  font-size: 11.5px;
+  color: var(--rail-muted);
+  font-weight: 600;
+}
+
+.env-toggle {
+  display: flex;
+  background: #0a0d16;
+  border-radius: 7px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.env-toggle button {
+  border: none;
+  background: transparent;
+  color: var(--rail-muted);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 9px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.env-toggle button.active {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.env-toggle button:disabled {
+  cursor: not-allowed;
+}
+
+@media (max-width: 760px) {
+  .rail-env {
+    display: none;
+  }
+}

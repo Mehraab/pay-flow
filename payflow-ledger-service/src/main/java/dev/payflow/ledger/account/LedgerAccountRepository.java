@@ -53,6 +53,17 @@ public class LedgerAccountRepository {
         this::mapRow);
   }
 
+  /** Every merchant currently holding an available (uncollected) balance — feeds the EOD sweep. */
+  public List<LedgerAccount> findMerchantPayableAccountsWithPositiveBalance() {
+    return jdbc.query(
+        """
+        SELECT * FROM ledger_accounts
+        WHERE merchant_id IS NOT NULL AND account_name = :name AND balance_minor > 0
+        """,
+        new MapSqlParameterSource("name", LedgerAccountService.MERCHANT_PAYABLE),
+        this::mapRow);
+  }
+
   public Optional<LedgerAccount> findById(UUID accountId) {
     List<LedgerAccount> rows =
         jdbc.query(

@@ -6,6 +6,7 @@ import dev.payflow.orchestrator.workflow.PaymentWorkflowInput;
 import dev.payflow.paymentcommand.domain.Payment;
 import dev.payflow.paymentcommand.domain.PaymentDomainEvent;
 import dev.payflow.paymentcommand.domain.PaymentId;
+import dev.payflow.paymentcommand.domain.PaymentMethodInfo;
 import dev.payflow.paymentcommand.workflow.PaymentWorkflowStarter;
 import org.springframework.stereotype.Component;
 
@@ -24,9 +25,16 @@ public class CreatePaymentHandler implements CommandHandler<CreatePaymentCommand
 
   @Override
   public PaymentId handle(CreatePaymentCommand command) {
+    String customer = command.customer() != null ? command.customer() : "Customer";
+    PaymentMethodInfo paymentMethod = PaymentMethodInfo.deriveMethod(command.cardNumber());
     Payment payment =
         Payment.create(
-            PaymentId.generate(), command.merchantId(), command.amount(), command.idempotencyKey());
+            PaymentId.generate(),
+            command.merchantId(),
+            command.amount(),
+            command.idempotencyKey(),
+            customer,
+            paymentMethod);
     repository.save(payment);
     workflowStarter.start(
         new PaymentWorkflowInput(
