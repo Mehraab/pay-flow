@@ -71,4 +71,11 @@ public class LedgerController {
         .map(acc -> ResponseEntity.ok(new AccountBalanceResponse(acc.accountName(), acc.balanceMinor())))
         .orElseGet(() -> ResponseEntity.notFound().build());
   }
+
+  @GetMapping("/operator/ledger/integrity")
+  public LedgerIntegrityResponse ledgerIntegrity() {
+    long totalDebitsMinor = postingService.sumTotalDebits();
+    long totalCreditsMinor = postingService.sumTotalCredits();
+    return new LedgerIntegrityResponse(totalDebitsMinor, totalCreditsMinor, totalDebitsMinor == totalCreditsMinor);
+  }
 }

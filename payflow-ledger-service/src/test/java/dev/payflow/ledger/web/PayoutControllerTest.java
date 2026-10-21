@@ -12,6 +12,7 @@ import dev.payflow.ledger.payout.Payout;
 import dev.payflow.ledger.payout.PayoutStatus;
 import dev.payflow.ledger.posting.LedgerPostingService;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -72,5 +73,32 @@ class PayoutControllerTest {
     when(postingService.findPayoutById(payoutId)).thenReturn(Optional.empty());
 
     mockMvc.perform(get("/payouts/{id}", payoutId)).andExpect(status().isNotFound());
+  }
+
+  @Test
+  void sweepReturnsEveryCreatedPayout() throws Exception {
+    Payout firstPayout =
+        new Payout(UUID.randomUUID(), UUID.randomUUID(), 9_710, "USD", PayoutStatus.IN_TRANSIT, Instant.now(), null);
+    Payout secondPayout =
+        new Payout(UUID.randomUUID(), UUID.randomUUID(), 20_779, "USD", PayoutStatus.IN_TRANSIT, Instant.now(), null);
+    when(postingService.sweepAllEligibleMerchants()).thenReturn(List.of(firstPayout, secondPayout));
+
+    mockMvc
+        .perform(post("/payouts/sweep"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.length()").value(2))
+        .andExpect(jsonPath("$[0].id").value(firstPayout.id().toString()))
+        .andExpect(jsonPath("$[1].id").value(secondPayout.id().toString()));
+  }
+
+  @Test
+  void sweepReturnsAnEmptyListWhenNoMerchantHasAnAvailableBalance() throws Exception {
+    when(postingService.sweepAllEligibleMerchants()).thenReturn(List.of());
+
+    mockMvc
+        .perform(post("/payouts/sweep"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$").isArray())
+        .andExpect(jsonPath("$").isEmpty());
   }
 }

@@ -65,6 +65,10 @@ public class LedgerAccountService {
     return repository.findById(accountId);
   }
 
+  public List<LedgerAccount> findMerchantPayableAccountsWithPositiveBalance() {
+    return repository.findMerchantPayableAccountsWithPositiveBalance();
+  }
+
   /**
    * Resolves a merchant-scoped account by name/slug without knowing which merchant — only safe
    * when exactly one merchant has an account by that name; returns empty both when none match

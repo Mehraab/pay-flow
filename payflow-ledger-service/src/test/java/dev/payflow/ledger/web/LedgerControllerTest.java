@@ -182,4 +182,25 @@ class LedgerControllerTest {
         .perform(get("/accounts/{merchantId}/{name}/balance", merchantId, "merchant-payable"))
         .andExpect(status().isNotFound());
   }
+
+  @Test
+  void ledgerIntegrityReturnsBalancedWhenDebitsAndCreditsMatch() throws Exception {
+    when(postingService.sumTotalDebits()).thenReturn(1_000_000L);
+    when(postingService.sumTotalCredits()).thenReturn(1_000_000L);
+
+    mockMvc
+        .perform(get("/operator/ledger/integrity"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.totalDebitsMinor").value(1_000_000))
+        .andExpect(jsonPath("$.totalCreditsMinor").value(1_000_000))
+        .andExpect(jsonPath("$.balanced").value(true));
+  }
+
+  @Test
+  void ledgerIntegrityReturnsUnbalancedWhenDebitsAndCreditsDiffer() throws Exception {
+    when(postingService.sumTotalDebits()).thenReturn(1_000_000L);
+    when(postingService.sumTotalCredits()).thenReturn(999_999L);
+
+    mockMvc.perform(get("/operator/ledger/integrity")).andExpect(jsonPath("$.balanced").value(false));
+  }
 }

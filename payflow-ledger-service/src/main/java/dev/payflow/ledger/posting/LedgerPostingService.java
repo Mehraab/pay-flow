@@ -10,6 +10,7 @@ import dev.payflow.ledger.payout.Payout;
 import dev.payflow.ledger.payout.PayoutRepository;
 import dev.payflow.ledger.payout.PayoutStatus;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -147,6 +148,51 @@ public class LedgerPostingService {
 
   public Optional<Payout> findPayoutById(UUID id) {
     return payoutRepository.findById(id);
+  }
+
+  /**
+   * Payout Phase B (ARCHITECTURE_AND_PLAN.md §2.3.3, BR-15): simulates the bank confirming the
+   * wire/ACH transfer that Phase A only initiated. Called by {@code SettlementSimulator} once
+   * enough time has passed since the payout went {@code IN_TRANSIT}.
+   */
+  @Transactional
+  public void settlePayout(UUID payoutId) {
+    Payout payout = payoutRepository.findById(payoutId).orElse(null);
+    if (payout == null || payout.status() == PayoutStatus.SETTLED) {
+      return;
+    }
+
+    LedgerAccount payoutInTransit = accountService.ensurePayoutInTransitAccount(payout.merchantId());
+    LedgerAccount platformBank =
+        accountService.ensurePlatformAccount(PLATFORM_BANK, AccountType.ASSET, NormalBalance.DEBIT);
+
+    postLeg("payout-settle-" + payoutId, payoutInTransit, platformBank, payout.amountMinor());
+
+    payoutRepository.updateStatus(payoutId, PayoutStatus.SETTLED, Instant.now());
+  }
+
+  /**
+   * Automated EOD sweep (BR-15): every merchant with an available {@code Merchant Payable}
+   * balance gets a Phase A payout — each in its OWN transaction (via {@link #createPayout}'s own
+   * {@code @Transactional}), not one shared transaction for the whole sweep, so one merchant's
+   * failure can't roll back payouts already committed for the others.
+   */
+  public List<Payout> sweepAllEligibleMerchants() {
+    List<LedgerAccount> eligibleAccounts = accountService.findMerchantPayableAccountsWithPositiveBalance();
+    List<Payout> payouts = new ArrayList<>();
+    for (LedgerAccount account : eligibleAccounts) {
+      payouts.add(createPayout(account.merchantId()));
+    }
+    return payouts;
+  }
+
+  /** BR-12 ledger integrity (§3) — see {@code GET /operator/ledger/integrity}. */
+  public long sumTotalDebits() {
+    return entryRepository.sumTotalDebits();
+  }
+
+  public long sumTotalCredits() {
+    return entryRepository.sumTotalCredits();
   }
 
   private UUID resolveMerchantId(List<LedgerEntry> entries) {

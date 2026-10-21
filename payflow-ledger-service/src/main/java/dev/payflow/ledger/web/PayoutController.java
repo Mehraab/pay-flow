@@ -2,6 +2,7 @@ package dev.payflow.ledger.web;
 
 import dev.payflow.ledger.payout.Payout;
 import dev.payflow.ledger.posting.LedgerPostingService;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,6 +30,12 @@ public class PayoutController {
   public ResponseEntity<PayoutResponse> getPayout(@PathVariable UUID id) {
     return postingService.findPayoutById(id).map(this::toResponse).map(ResponseEntity::ok).orElseGet(
         () -> ResponseEntity.notFound().build());
+  }
+
+  @PostMapping("/payouts/sweep")
+  public ResponseEntity<List<PayoutResponse>> sweep() {
+    List<Payout> payouts = postingService.sweepAllEligibleMerchants();
+    return ResponseEntity.ok(payouts.stream().map(this::toResponse).toList());
   }
 
   private PayoutResponse toResponse(Payout payout) {

@@ -29,6 +29,24 @@ public class LedgerEntryRepository {
         this::mapRow);
   }
 
+  /**
+   * BR-12 ledger integrity (§3): the cross-row aggregate a SQL CHECK constraint can't express —
+   * see {@code GET /operator/ledger/integrity}. Note that for THIS schema, where every single
+   * row already carries one debit leg and one credit leg of the identical {@code amount_minor},
+   * this sum is mathematically always equal to {@link #sumTotalCredits()} — the real value of
+   * this pair of queries is as a standing, re-runnable assertion of that invariant, not as a
+   * check capable of catching an unbalanced row that the schema itself cannot represent anyway.
+   */
+  public long sumTotalDebits() {
+    Long sum = jdbc.queryForObject("SELECT COALESCE(SUM(amount_minor), 0) FROM ledger_entries", new MapSqlParameterSource(), Long.class);
+    return sum != null ? sum : 0L;
+  }
+
+  public long sumTotalCredits() {
+    Long sum = jdbc.queryForObject("SELECT COALESCE(SUM(amount_minor), 0) FROM ledger_entries", new MapSqlParameterSource(), Long.class);
+    return sum != null ? sum : 0L;
+  }
+
   public boolean existsForTransactionRef(String transactionRef) {
     Integer count =
         jdbc.queryForObject(
