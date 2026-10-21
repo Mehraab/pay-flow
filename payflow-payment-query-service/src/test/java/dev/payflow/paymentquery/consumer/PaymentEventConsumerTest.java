@@ -54,7 +54,7 @@ class PaymentEventConsumerTest {
   void paymentCapturedEventUpdatesStatusAndProviderRefWithoutLosingOtherFields() {
     UUID paymentId = UUID.randomUUID();
     UUID merchantId = UUID.randomUUID();
-    store.save(new PaymentView(paymentId, merchantId, 21400, "USD", "CREATED", null));
+    store.save(new PaymentView(paymentId, merchantId, 21400, "USD", "CREATED", null, null));
 
     consumer.onPaymentEvent(paymentId.toString(), "payment.captured", "{\"providerRef\":\"mock-ch-abc123\"}");
 
@@ -66,19 +66,23 @@ class PaymentEventConsumerTest {
   }
 
   @Test
-  void paymentFailedEventUpdatesStatusWithoutRequiringAnyPayloadFields() {
+  void paymentFailedEventUpdatesStatusAndDeclineReason() {
     UUID paymentId = UUID.randomUUID();
-    store.save(new PaymentView(paymentId, UUID.randomUUID(), 21400, "USD", "CREATED", null));
+    store.save(new PaymentView(paymentId, UUID.randomUUID(), 21400, "USD", "CREATED", null, null));
 
-    consumer.onPaymentEvent(paymentId.toString(), "payment.failed", "{\"declineReason\":\"Card declined\"}");
+    consumer.onPaymentEvent(
+        paymentId.toString(), "payment.failed", "{\"declineReason\":\"Insufficient funds\"}");
 
-    assertThat(store.findById(paymentId).orElseThrow().status()).isEqualTo("FAILED");
+    PaymentView view = store.findById(paymentId).orElseThrow();
+    assertThat(view.status()).isEqualTo("FAILED");
+    assertThat(view.declineReason()).isEqualTo("Insufficient funds");
   }
 
   @Test
   void paymentRefundedEventUpdatesStatusWithoutRequiringAnyPayloadFields() {
     UUID paymentId = UUID.randomUUID();
-    store.save(new PaymentView(paymentId, UUID.randomUUID(), 21400, "USD", "CAPTURED", "mock-ch-abc123"));
+    store.save(
+        new PaymentView(paymentId, UUID.randomUUID(), 21400, "USD", "CAPTURED", "mock-ch-abc123", null));
 
     consumer.onPaymentEvent(paymentId.toString(), "payment.refunded", "{}");
 

@@ -30,7 +30,11 @@ public class CreatePaymentHandler implements CommandHandler<CreatePaymentCommand
     repository.save(payment);
     workflowStarter.start(
         new PaymentWorkflowInput(
-            payment.id().value(), command.merchantId(), command.amount(), command.cardNumber()));
+            payment.id().value(),
+            command.merchantId(),
+            command.amount(),
+            command.cardNumber(),
+            command.forceLedgerFailure()));
     return payment.id();
   }
 }

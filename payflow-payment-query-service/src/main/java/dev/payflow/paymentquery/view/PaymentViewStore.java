@@ -27,7 +27,23 @@ public class PaymentViewStore {
                 existing.amountMinor(),
                 existing.currency(),
                 status,
-                providerRef != null ? providerRef : existing.providerRef()));
+                providerRef != null ? providerRef : existing.providerRef(),
+                existing.declineReason()));
+  }
+
+  /** No-op when the payment hasn't been seen yet (its {@code payment.created} event is missing). */
+  public void updateFailed(UUID paymentId, String declineReason) {
+    views.computeIfPresent(
+        paymentId,
+        (id, existing) ->
+            new PaymentView(
+                existing.paymentId(),
+                existing.merchantId(),
+                existing.amountMinor(),
+                existing.currency(),
+                "FAILED",
+                existing.providerRef(),
+                declineReason));
   }
 
   public Optional<PaymentView> findById(UUID paymentId) {

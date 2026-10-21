@@ -36,7 +36,7 @@ public class PaymentEventConsumer {
     switch (eventType) {
       case "payment.created" -> handleCreated(paymentId, payload);
       case "payment.captured" -> handleCaptured(paymentId, payload);
-      case "payment.failed" -> store.updateStatus(paymentId, "FAILED", null);
+      case "payment.failed" -> handleFailed(paymentId, payload);
       case "payment.refunded" -> store.updateStatus(paymentId, "REFUNDED", null);
       default -> {
         // Unknown/future event type — ignored rather than failing the consumer.
@@ -53,11 +53,17 @@ public class PaymentEventConsumer {
             created.amount().amountMinor(),
             created.amount().currency().name(),
             "CREATED",
+            null,
             null));
   }
 
   private void handleCaptured(UUID paymentId, String payload) {
     PaymentCapturedPayload captured = objectMapper.readValue(payload, PaymentCapturedPayload.class);
     store.updateStatus(paymentId, "CAPTURED", captured.providerRef());
+  }
+
+  private void handleFailed(UUID paymentId, String payload) {
+    PaymentFailedPayload failed = objectMapper.readValue(payload, PaymentFailedPayload.class);
+    store.updateFailed(paymentId, failed.declineReason());
   }
 }

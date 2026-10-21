@@ -42,7 +42,7 @@ class PaymentCommandControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
-                        new CreatePaymentRequest(merchantId, 21400, "USD", "4242424242424242"))))
+                        new CreatePaymentRequest(merchantId, 21400, "USD", "4242424242424242", null))))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.paymentId").value(generatedId.value().toString()));
 
@@ -52,7 +52,35 @@ class PaymentCommandControllerTest {
                 merchantId,
                 dev.payflow.common.domain.Money.of(21400, dev.payflow.common.domain.Currency.USD),
                 "4242424242424242",
+                false,
                 "demo-001"));
+  }
+
+  @Test
+  void createSetsForceLedgerFailureWhenTheHeaderIsPresent() throws Exception {
+    var merchantId = UUID.randomUUID();
+    var generatedId = PaymentId.generate();
+    when(commandBus.dispatch(any(CreatePaymentCommand.class))).thenReturn(generatedId);
+
+    mockMvc
+        .perform(
+            post("/payments")
+                .header("Idempotency-Key", "demo-002")
+                .header("X-Force-Ledger-Failure", "true")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        new CreatePaymentRequest(merchantId, 21400, "USD", "4242424242424242", null))))
+        .andExpect(status().isCreated());
+
+    verify(commandBus)
+        .dispatch(
+            new CreatePaymentCommand(
+                merchantId,
+                dev.payflow.common.domain.Money.of(21400, dev.payflow.common.domain.Currency.USD),
+                "4242424242424242",
+                true,
+                "demo-002"));
   }
 
   @Test

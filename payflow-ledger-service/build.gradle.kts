@@ -14,6 +14,11 @@ dependencies {
     // plain flyway-core alone never ran any migration (discovered in Milestone 1 Chunk 2).
     implementation("org.springframework.boot:spring-boot-starter-flyway")
     implementation("org.flywaydb:flyway-database-postgresql")
+    // Spring Boot 4.x split Kafka autoconfiguration (including @KafkaListener container
+    // factories) out of raw spring-kafka into its own starter (discovered in Milestone 1
+    // Chunk 2) — needed here for PaymentRefundedConsumer.
+    implementation("org.springframework.boot:spring-boot-starter-kafka")
+    implementation("tools.jackson.core:jackson-databind")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")

@@ -86,4 +86,44 @@ class LedgerPostingServiceTest extends AbstractPostgresIntegrationTest {
     assertThat(firstPayable.balanceMinor()).isEqualTo(9_710);
     assertThat(secondPayable.balanceMinor()).isEqualTo(9_710);
   }
+
+  @Test
+  void reverseCaptureIfExistsUndoesACapturedPaymentsBalances() {
+    UUID paymentId = UUID.randomUUID();
+    UUID merchantId = UUID.randomUUID();
+    Money amount = Money.of(21_400, Currency.USD);
+    postingService.postPaymentCapture(paymentId, merchantId, amount);
+
+    postingService.reverseCaptureIfExists(paymentId);
+
+    LedgerAccount platformBank = accountService.findPlatformAccount("Platform Bank").orElseThrow();
+    LedgerAccount feeRevenue = accountService.findPlatformAccount("Platform Fee Revenue").orElseThrow();
+    LedgerAccount merchantPayable =
+        accountService.findMerchantAccount(merchantId, "Merchant Payable").orElseThrow();
+
+    assertThat(platformBank.balanceMinor()).isZero();
+    assertThat(feeRevenue.balanceMinor()).isZero();
+    assertThat(merchantPayable.balanceMinor()).isZero();
+
+    Integer entryCount =
+        jdbc.queryForObject(
+            "SELECT count(*) FROM ledger_entries WHERE transaction_ref = :ref",
+            new MapSqlParameterSource("ref", paymentId.toString()),
+            Integer.class);
+    assertThat(entryCount).isEqualTo(4); // 2 capture legs + 2 reversal legs
+  }
+
+  @Test
+  void reverseCaptureIfExistsIsANoOpWhenTheLedgerNeverPostedACapture() {
+    UUID paymentId = UUID.randomUUID();
+
+    postingService.reverseCaptureIfExists(paymentId);
+
+    Integer entryCount =
+        jdbc.queryForObject(
+            "SELECT count(*) FROM ledger_entries WHERE transaction_ref = :ref",
+            new MapSqlParameterSource("ref", paymentId.toString()),
+            Integer.class);
+    assertThat(entryCount).isZero();
+  }
 }

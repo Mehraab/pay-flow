@@ -33,11 +33,15 @@ public class PaymentCommandController {
   @PostMapping("/payments")
   public ResponseEntity<CreatePaymentResponse> create(
       @RequestHeader("Idempotency-Key") String idempotencyKey,
+      @RequestHeader(value = "X-Force-Ledger-Failure", required = false) Boolean forceLedgerFailureHeader,
       @RequestBody CreatePaymentRequest request) {
     Money amount = Money.of(request.amountMinor(), Currency.valueOf(request.currency()));
+    boolean forceLedgerFailure =
+        Boolean.TRUE.equals(forceLedgerFailureHeader) || Boolean.TRUE.equals(request.forceLedgerFailure());
     PaymentId id =
         commandBus.dispatch(
-            new CreatePaymentCommand(request.merchantId(), amount, request.cardNumber(), idempotencyKey));
+            new CreatePaymentCommand(
+                request.merchantId(), amount, request.cardNumber(), forceLedgerFailure, idempotencyKey));
     return ResponseEntity.status(201).body(new CreatePaymentResponse(id.value()));
   }
 

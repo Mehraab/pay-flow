@@ -5,10 +5,12 @@ import dev.payflow.common.dto.AuthorizationStatus;
 import dev.payflow.common.dto.AuthorizePaymentRequest;
 import dev.payflow.common.dto.AuthorizePaymentResponse;
 import dev.payflow.common.dto.VoidChargeRequest;
+import io.temporal.failure.ApplicationFailure;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestClient;
 
 /**
@@ -40,18 +42,28 @@ public class PaymentActivitiesImpl implements PaymentActivities {
 
   @Override
   public String authorizeAndCapture(UUID paymentId, Money amount, String cardNumber) {
-    AuthorizePaymentResponse authorization =
-        restClient
-            .post()
-            .uri(providerGatewayUrl + "/internal/providers/charge")
-            .contentType(MediaType.APPLICATION_JSON)
-            .body(new AuthorizePaymentRequest(paymentId, amount, cardNumber))
-            .retrieve()
-            .body(AuthorizePaymentResponse.class);
+    AuthorizePaymentResponse authorization;
+    try {
+      authorization =
+          restClient
+              .post()
+              .uri(providerGatewayUrl + "/internal/providers/charge")
+              .contentType(MediaType.APPLICATION_JSON)
+              .body(new AuthorizePaymentRequest(paymentId, amount, cardNumber))
+              .retrieve()
+              .body(AuthorizePaymentResponse.class);
+    } catch (HttpServerErrorException e) {
+      // The mock provider's 0119-suffix branch throws after a simulated 5s delay, surfacing
+      // here as a 504 — treated as a decline, not retried (a real processor that just timed
+      // out is not reliably safe to retry blind).
+      throw ApplicationFailure.newNonRetryableFailure(
+          "Processor timed out", "ProcessorTimeout", "Processor timed out");
+    }
 
     if (authorization == null || authorization.status() != AuthorizationStatus.APPROVED) {
       String reason = authorization == null ? "No response from provider gateway" : authorization.declineReason();
-      throw new IllegalStateException("Payment declined: " + reason);
+      throw ApplicationFailure.newNonRetryableFailure(
+          "Payment declined: " + reason, "PaymentDeclined", reason);
     }
 
     restClient
@@ -66,11 +78,16 @@ public class PaymentActivitiesImpl implements PaymentActivities {
   }
 
   @Override
-  public void postToLedger(UUID paymentId, UUID merchantId, Money amount) {
-    restClient
-        .post()
-        .uri(ledgerUrl + "/internal/ledger/post-capture")
-        .contentType(MediaType.APPLICATION_JSON)
+  public void postToLedger(UUID paymentId, UUID merchantId, Money amount, boolean forceLedgerFailure) {
+    var request =
+        restClient
+            .post()
+            .uri(ledgerUrl + "/internal/ledger/post-capture")
+            .contentType(MediaType.APPLICATION_JSON);
+    if (forceLedgerFailure) {
+      request = request.header("X-Force-Ledger-Failure", "true");
+    }
+    request
         .body(
             new PostLedgerCaptureRequest(
                 paymentId, merchantId, amount.amountMinor(), amount.currency().name()))
@@ -107,6 +124,15 @@ public class PaymentActivitiesImpl implements PaymentActivities {
         .uri(paymentCommandUrl + "/internal/payments/{id}/fail", paymentId)
         .contentType(MediaType.APPLICATION_JSON)
         .body(new FailPaymentRequest(declineReason))
+        .retrieve()
+        .toBodilessEntity();
+  }
+
+  @Override
+  public void refundPayment(UUID paymentId) {
+    restClient
+        .post()
+        .uri(paymentCommandUrl + "/internal/payments/{id}/refund", paymentId)
         .retrieve()
         .toBodilessEntity();
   }

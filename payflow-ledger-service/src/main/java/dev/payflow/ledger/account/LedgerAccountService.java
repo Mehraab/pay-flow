@@ -52,6 +52,10 @@ public class LedgerAccountService {
     return repository.findMerchantAccount(merchantId, accountName);
   }
 
+  public Optional<LedgerAccount> findById(UUID accountId) {
+    return repository.findById(accountId);
+  }
+
   /**
    * Resolves a merchant-scoped account by name/slug without knowing which merchant — only safe
    * when exactly one merchant has an account by that name; returns empty both when none match

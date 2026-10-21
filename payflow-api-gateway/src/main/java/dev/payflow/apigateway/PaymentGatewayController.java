@@ -42,11 +42,15 @@ public class PaymentGatewayController {
   @PostMapping
   public ResponseEntity<byte[]> createPayment(
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+      @RequestHeader(value = "X-Force-Ledger-Failure", required = false) String forceLedgerFailure,
       @RequestBody byte[] body) {
     var request =
         restClient.post().uri(paymentCommandUrl + "/payments").contentType(MediaType.APPLICATION_JSON);
     if (idempotencyKey != null) {
       request = request.header("Idempotency-Key", idempotencyKey);
+    }
+    if (forceLedgerFailure != null) {
+      request = request.header("X-Force-Ledger-Failure", forceLedgerFailure);
     }
     return request.body(body).exchange(this::relay);
   }

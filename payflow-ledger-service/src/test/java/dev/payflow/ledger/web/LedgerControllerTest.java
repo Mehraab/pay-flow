@@ -1,7 +1,9 @@
 package dev.payflow.ledger.web;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -14,7 +16,10 @@ import dev.payflow.ledger.account.AccountType;
 import dev.payflow.ledger.account.LedgerAccount;
 import dev.payflow.ledger.account.LedgerAccountService;
 import dev.payflow.ledger.account.NormalBalance;
+import dev.payflow.ledger.posting.LedgerEntry;
 import dev.payflow.ledger.posting.LedgerPostingService;
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -50,6 +55,56 @@ class LedgerControllerTest {
 
     verify(postingService)
         .postPaymentCapture(eq(paymentId), eq(merchantId), eq(Money.of(21_400, Currency.USD)));
+  }
+
+  @Test
+  void postCaptureThrowsWhenForceFailureHeaderIsTrueAndNeverCallsThePostingService() {
+    UUID paymentId = UUID.randomUUID();
+    UUID merchantId = UUID.randomUUID();
+
+    // An uncaught RuntimeException with no @ResponseStatus/handler propagates out of
+    // mockMvc.perform() as a ServletException rather than being converted to a response
+    // status MockMvc can assert on directly — same reasoning as Milestone 1 Chunk 3's
+    // identically-shaped test for the account-balance 404 path.
+    assertThatThrownBy(
+            () ->
+                mockMvc.perform(
+                    post("/internal/ledger/post-capture")
+                        .header("X-Force-Ledger-Failure", "true")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                            objectMapper.writeValueAsString(
+                                new PostCaptureRequest(paymentId, merchantId, 21_400, "USD")))))
+        .hasRootCauseInstanceOf(IllegalStateException.class);
+
+    verifyNoInteractions(postingService);
+  }
+
+  @Test
+  void entriesForTransactionReturnsThePostingServicesEntries() throws Exception {
+    UUID debitAccountId = UUID.randomUUID();
+    UUID creditAccountId = UUID.randomUUID();
+    Instant postedAt = Instant.parse("2026-01-01T00:00:00Z");
+    LedgerEntry entry =
+        new LedgerEntry(UUID.randomUUID(), "demo-ref", debitAccountId, creditAccountId, 20_779, postedAt);
+    when(postingService.findEntriesForTransaction("demo-ref")).thenReturn(List.of(entry));
+
+    mockMvc
+        .perform(get("/ledger").param("transaction", "demo-ref"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].transactionRef").value("demo-ref"))
+        .andExpect(jsonPath("$[0].amountMinor").value(20_779));
+  }
+
+  @Test
+  void entriesForTransactionReturnsAnEmptyListWhenNoneExist() throws Exception {
+    when(postingService.findEntriesForTransaction("missing-ref")).thenReturn(List.of());
+
+    mockMvc
+        .perform(get("/ledger").param("transaction", "missing-ref"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$").isArray())
+        .andExpect(jsonPath("$").isEmpty());
   }
 
   @Test

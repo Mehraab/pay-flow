@@ -53,6 +53,15 @@ public class LedgerAccountRepository {
         this::mapRow);
   }
 
+  public Optional<LedgerAccount> findById(UUID accountId) {
+    List<LedgerAccount> rows =
+        jdbc.query(
+            "SELECT * FROM ledger_accounts WHERE id = :id",
+            new MapSqlParameterSource("id", accountId),
+            this::mapRow);
+    return rows.stream().findFirst();
+  }
+
   /**
    * Plain insert, no conflict handling — a Postgres UNIQUE constraint never fires for two rows
    * that both have {@code merchant_id IS NULL}, since NULLs are never equal to each other, so

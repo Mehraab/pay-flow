@@ -38,7 +38,8 @@ class CreatePaymentHandlerTest extends AbstractPostgresIntegrationTest {
     String cardNumber = "4242424242424242";
     String idempotencyKey = "test-" + UUID.randomUUID();
 
-    var paymentId = handler.handle(new CreatePaymentCommand(merchantId, amount, cardNumber, idempotencyKey));
+    var paymentId =
+        handler.handle(new CreatePaymentCommand(merchantId, amount, cardNumber, false, idempotencyKey));
 
     Payment saved = repository.findById(paymentId).orElseThrow();
     assertThat(saved.status()).isEqualTo(PaymentStatus.CREATED);
@@ -46,6 +47,6 @@ class CreatePaymentHandlerTest extends AbstractPostgresIntegrationTest {
     assertThat(saved.amount()).isEqualTo(amount);
 
     verify(workflowStarter)
-        .start(eq(new PaymentWorkflowInput(paymentId.value(), merchantId, amount, cardNumber)));
+        .start(eq(new PaymentWorkflowInput(paymentId.value(), merchantId, amount, cardNumber, false)));
   }
 }

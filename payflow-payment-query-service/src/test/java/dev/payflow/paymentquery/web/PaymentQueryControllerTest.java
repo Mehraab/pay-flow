@@ -25,7 +25,8 @@ class PaymentQueryControllerTest {
   void returnsTheViewWhenThePaymentExists() throws Exception {
     UUID paymentId = UUID.randomUUID();
     UUID merchantId = UUID.randomUUID();
-    PaymentView view = new PaymentView(paymentId, merchantId, 21_400, "USD", "CAPTURED", "mock-ch-abc123");
+    PaymentView view =
+        new PaymentView(paymentId, merchantId, 21_400, "USD", "CAPTURED", "mock-ch-abc123", null);
     when(store.findById(paymentId)).thenReturn(Optional.of(view));
 
     mockMvc
