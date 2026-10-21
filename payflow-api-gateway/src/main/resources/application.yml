@@ -19,6 +19,8 @@ payflow:
     payment-query-url: http://localhost:8082
     ledger-url: http://localhost:8085
     provider-gateway-url: http://localhost:8083
+    orchestrator-url: http://localhost:8084
+    notification-url: http://localhost:8086
   security:
     jwt:
       secret: "payflow-dev-jwt-secret-change-me-32chars+"

@@ -33,18 +33,24 @@ public class PaymentGatewayController {
   private final String paymentQueryUrl;
   private final String ledgerUrl;
   private final String providerGatewayUrl;
+  private final String orchestratorUrl;
+  private final String notificationUrl;
 
   public PaymentGatewayController(
       RestClient restClient,
       @Value("${payflow.gateway.payment-command-url}") String paymentCommandUrl,
       @Value("${payflow.gateway.payment-query-url}") String paymentQueryUrl,
       @Value("${payflow.gateway.ledger-url}") String ledgerUrl,
-      @Value("${payflow.gateway.provider-gateway-url}") String providerGatewayUrl) {
+      @Value("${payflow.gateway.provider-gateway-url}") String providerGatewayUrl,
+      @Value("${payflow.gateway.orchestrator-url}") String orchestratorUrl,
+      @Value("${payflow.gateway.notification-url}") String notificationUrl) {
     this.restClient = restClient;
     this.paymentCommandUrl = paymentCommandUrl;
     this.paymentQueryUrl = paymentQueryUrl;
     this.ledgerUrl = ledgerUrl;
     this.providerGatewayUrl = providerGatewayUrl;
+    this.orchestratorUrl = orchestratorUrl;
+    this.notificationUrl = notificationUrl;
   }
 
   @PostMapping("/api/v1/payments")
@@ -83,6 +89,23 @@ public class PaymentGatewayController {
       HttpServletRequest request, @RequestBody(required = false) byte[] body) {
     RestClient.RequestBodySpec requestSpec =
         restClient.method(HttpMethod.valueOf(request.getMethod())).uri(providerGatewayUrl + request.getRequestURI());
+    RequestHeadersSpec<?> spec =
+        (body != null && body.length > 0)
+            ? requestSpec.contentType(MediaType.APPLICATION_JSON).body(body)
+            : requestSpec;
+    return spec.exchange(this::relay);
+  }
+
+  @GetMapping("/operator/saga-events")
+  public ResponseEntity<byte[]> sagaEvents() {
+    return restClient.get().uri(orchestratorUrl + "/operator/saga-events").exchange(this::relay);
+  }
+
+  @RequestMapping(value = "/operator/webhooks/dlq/**", method = {RequestMethod.GET, RequestMethod.POST})
+  public ResponseEntity<byte[]> proxyWebhookDlq(
+      HttpServletRequest request, @RequestBody(required = false) byte[] body) {
+    RestClient.RequestBodySpec requestSpec =
+        restClient.method(HttpMethod.valueOf(request.getMethod())).uri(notificationUrl + request.getRequestURI());
     RequestHeadersSpec<?> spec =
         (body != null && body.length > 0)
             ? requestSpec.contentType(MediaType.APPLICATION_JSON).body(body)
