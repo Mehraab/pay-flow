@@ -1,6 +1,8 @@
 import { Routes } from '@angular/router';
 import { authGuard, merchantGuard, operatorGuard } from './core/guards/auth.guard';
 import { SignIn } from './features/auth/sign-in/sign-in';
+import { TransactionDetail } from './features/transactions/transaction-detail/transaction-detail';
+import { Transactions } from './features/transactions/transactions';
 import { AppShell } from './layout/app-shell/app-shell';
 import { PlaceholderView } from './shared/components/placeholder-view/placeholder-view';
 
@@ -19,13 +21,13 @@ export const routes: Routes = [
       },
       {
         path: 'transactions',
-        component: PlaceholderView,
+        component: Transactions,
         canActivate: [merchantGuard],
         data: { title: 'Transactions', sub: 'All payment activity' },
       },
       {
         path: 'transactions/:id',
-        component: PlaceholderView,
+        component: TransactionDetail,
         canActivate: [merchantGuard],
         data: { title: 'Transaction detail' },
       },

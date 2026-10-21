@@ -1,16 +1,1 @@
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 20px;
-  text-align: center;
-  color: var(--muted);
-  gap: 8px;
-}
-
-.empty-state b {
-  font-family: 'Manrope', sans-serif;
-  color: var(--ink);
-  font-size: 15px;
-}
+/* .empty-state lives in the global stylesheet. */

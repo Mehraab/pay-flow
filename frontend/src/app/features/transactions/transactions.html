@@ -1,0 +1,75 @@
+<div class="filters">
+  @for (chip of chips; track chip.value) {
+    <button
+      class="chip"
+      [class.active]="statusFilter() === chip.value"
+      type="button"
+      (click)="setStatusFilter(chip.value)"
+    >
+      {{ chip.label }}
+    </button>
+  }
+</div>
+
+@if (hasError()) {
+  <div class="banner error">
+    <span>{{ errorMessage() }}</span>
+    <button type="button" (click)="load()">Retry</button>
+  </div>
+}
+
+<div class="card panel">
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Customer</th>
+          <th>Method</th>
+          <th>Provider</th>
+          <th>Status</th>
+          <th>Created</th>
+          <th class="amount">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        @if (isLoading()) {
+          @for (row of skeletonRows; track $index) {
+            <tr class="skeleton-row">
+              <td colspan="7"><div class="skeleton-bar"></div></td>
+            </tr>
+          }
+        }
+        @if (isSuccess()) {
+          @for (payment of filtered(); track payment.paymentId) {
+            <tr class="row-link" (click)="openPayment(payment.paymentId)">
+              <td class="cell-id mono">{{ payment.paymentId.slice(0, 8) }}</td>
+              <td>{{ payment.customerName ?? '—' }}</td>
+              <td>{{ payment.method ?? '—' }}</td>
+              <td class="mono">{{ payment.providerRef ?? '—' }}</td>
+              <td>
+                <span class="status-pill {{ statusPillVariant(payment.status) }}">
+                  <span class="dot"></span>{{ statusLabel(payment.status) }}
+                </span>
+              </td>
+              <td>{{ payment.createdAt ? (payment.createdAt | date: 'MMM d, h:mm a') : '—' }}</td>
+              <td class="amount tab">{{ formatMoney(payment.amountMinor, payment.currency) }}</td>
+            </tr>
+          }
+        }
+      </tbody>
+    </table>
+  </div>
+
+  @if (isEmpty()) {
+    <div class="empty-state">
+      @if (isUnfiltered()) {
+        <b>No transactions yet</b>
+        <span>Payments will show up here once your first charge comes through.</span>
+      } @else {
+        <b>No matches</b>
+        <span>No transactions match this filter — try a different status or search term.</span>
+      }
+    </div>
+  }
+</div>

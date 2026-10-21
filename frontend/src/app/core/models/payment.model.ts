@@ -1,6 +1,7 @@
 export type Currency = 'USD' | 'EUR' | 'GBP';
 
-export type PaymentStatus = 'PENDING' | 'CAPTURED' | 'DECLINED' | 'REFUNDED';
+/** Real vocabulary from payflow-payment-query-service's PaymentView — not PENDING/DECLINED. */
+export type PaymentStatus = 'CREATED' | 'AUTHORIZED' | 'CAPTURED' | 'FAILED' | 'REFUNDED';
 
 export interface PaymentView {
   paymentId: string;
@@ -13,14 +14,15 @@ export interface PaymentView {
 }
 
 /**
- * Extends PaymentView with fields BE-03 will add server-side. Used only by
- * STUB(BE-02) list data until BE-03 ships.
+ * Extends PaymentView with the BE-03 fields (now shipped — see payment-api.mapper.ts,
+ * which maps the real customer/paymentMethod wire fields onto these). Kept optional
+ * since a record predating BE-03 could in principle still lack them.
  */
 export interface PaymentViewEnriched extends PaymentView {
-  customerName: string;
-  method: string;
-  createdAt: string;
-  idempotencyKey: string;
+  customerName?: string;
+  method?: string;
+  createdAt?: string;
+  idempotencyKey?: string;
 }
 
 export interface CreatePaymentRequest {

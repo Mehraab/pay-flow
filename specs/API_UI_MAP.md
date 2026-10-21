@@ -1,202 +1,140 @@
 # PayFlow Console → Gateway API Map
 
-Maps every data-bearing element and action trigger in `PayFlow Console.html` to the
-Gateway routes documented in `specs/API_CATALOG.md`. The console today is a static
-prototype — `TRANSACTIONS` is a hardcoded JS array, the sign-in form does `e.preventDefault()`
-and nothing else, and every button mutates local state only. **No `fetch`/`XHR` call
-exists anywhere in the file.** This doc maps what *would* wire to what, and calls out
-where the Gateway has no matching route or the response schema is missing fields the UI
-already renders.
+**Second pass.** Re-derived from the actual backend source (not the possibly-stale
+`specs/API_CATALOG.md`) after commits `99c3634` (BE-01/02/03) and `dd786ac`
+(BE-04..BE-08), and cross-checked against the real Angular frontend now under
+`frontend/src/app/` (which did not exist on the first pass — only the static
+`PayFlow Console.html` mock did). Most of the gateway-side gaps from the first pass are
+now closed. The new, more interesting gap is that **the frontend's service/model layer
+was written against stub assumptions before BE-01..08 shipped, and hasn't been updated
+to match what actually landed** — that's now the main body of this report.
 
-**Architecture note**: PayFlow is the payment *processor*. The merchant's own website
-owns checkout and calls `POST /api/v1/payments` server-to-server with the card data —
-this console never does. The console is the merchant/operator dashboard: read-mostly
-views over payments/ledger/platform-health, plus `POST
-/api/v1/payments/{id}/refund` as its one write action. Keep that boundary in mind
-below — "no payment-creation UI" is correct design, not a gap.
+**Architecture note (unchanged)**: PayFlow is the payment *processor*. The merchant's
+own website calls `POST /api/v1/payments` server-to-server with the card data — this
+console never does. The console is the merchant/operator dashboard: read-mostly views
+over payments/ledger/platform-health, plus `POST /api/v1/payments/{id}/refund` as a
+write action. The new Angular router confirms this directly: `frontend/src/app/app.routes.ts`
+has a `sandbox` route labeled *"Internal engineering tool — not the real checkout
+path"* — i.e. even PayFlow's own team treats payment-creation as a separate,
+clearly-flagged dev tool, not a console feature.
 
-Severity key: 🔴 no backend route exists at all · 🟠 route exists but not gateway-routed
-(per Catalog) · 🟡 route exists and is gateway-routed, but response schema is missing
-fields the UI needs · 🟢 clean match.
+Severity key: 🔴 no backend route exists · 🟠 route exists but not gateway-routed ·
+🟡 route exists and is gateway-routed but response schema is missing fields /
+diverges from the frontend's model · 🟢 clean match, actually wired · ⚪ wired on the
+backend, but the frontend still calls a mock/stub instead of the real endpoint.
 
 ---
 
-## 0. Sign-in screen (`#signin`)
+## 0. What changed on the backend since the first pass
 
-| UI element | Gateway API | Status |
+| New/changed route | Service | Notes |
 |---|---|---|
-| Email/password form, "Continue" | `POST /auth/token` | 🔴 Not called. Form submit just hides the overlay (`e.preventDefault()`); no `fetch` to `/auth/token`, no token stored, nothing sent. Email/password fields don't correspond to `TokenRequest` (`role`, `merchantId`) at all — the real auth model is roleless-credential, token-based with no password. |
-| Role toggle (Merchant/Operator) in the rail | `POST /auth/token` (re-issue with `role: "MERCHANT"` / `"OPERATOR"`) | 🔴 `setRole()` only flips a `data-role` body attribute and re-renders. A real integration needs a fresh token per role (the JWT's `role` claim is what the gateway's `JwtAuthenticationFilter` checks for `/operator/**`), so this toggle should call `/auth/token` again, not just restyle the page. |
-| Environment toggle (Test/Live) | *(none)* | 🔴 **Gap — no backend concept.** The Catalog has no test/live environment split anywhere (no separate base URL, no header, no field). `envTest`/`envLive` just set `data-env="live"` to swap in an empty-state illustration. If this is a real product requirement, it needs a new Gateway concept (e.g. a `X-Environment` header or separate test/live API-key scoping) that doesn't exist today. |
-| "Design prototype — any credentials continue" note | — | Confirms the above is intentional for now; flagging since the task asks for gaps. |
+| `GET /api/v1/payments` (list) | query-service, **now gateway-routed** | Filters: `status`, `q` (matches payment ID or `customer`), `page`, `size`. Merchant-scoped via `X-Merchant-Id` (operator sees all). Closes the §1/§2 "no list endpoint" gap from the first pass. |
+| `GET /api/v1/payments/summary` | query-service, **new, gateway-routed** | `{netVolumeMinor, currency, volumeDeltaPct, successRatePct, avgAuthSeconds, dailyVolume[]}`. Closes the Overview stats/chart gap — **except** `volumeDeltaPct` and `avgAuthSeconds` are hardcoded constants (12.5% / 0.35s) in `PaymentViewStore.getSummary`, not derived — fine for now, but not "real" analytics. No `activeDisputes` field exists anywhere — that stat is still unbacked. |
+| `GET /api/v1/payments/{id}/events` | query-service, **new, gateway-routed** | `[{eventType, status, timestamp, description}]`. Closes the Detail-view timeline gap almost exactly as the mock envisioned (narrative `description` string included). Falls back to a synthesized timeline from the current `PaymentView` if no real events were recorded yet — never 404s for a known payment. |
+| `PaymentView` response enrichment | query-service | Added `createdAt`, `customer`, `paymentMethod{brand,last4}`, `idempotencyKey`, `providerDisplayName`. Closes essentially every "missing field" gap the Detail view had in the first pass. |
+| `GET /accounts/{accountName}/balance`, `GET /accounts/{merchantId}/{accountName}/balance`, `GET /ledger`, `POST /payouts`, `GET /payouts/{id}` | ledger-service, **now gateway-routed** | All of Section 3 from the old Catalog ("none of these are gateway-routed") is now proxied directly by `PaymentGatewayController`. Closes the whole Ledger-view gap. |
+| `POST /operator/payouts/sweep` | ledger-service, **new, gateway-routed** | Note the path: it's `/operator/payouts/sweep`, not `/payouts/sweep` — moved under the operator prefix (as the first pass recommended) so it's `ROLE_OPERATOR`-gated. |
+| `GET /operator/ledger/entries` | ledger-service, **new, gateway-routed** | `{content:[...], page, size, totalElements, totalPages}` — paginated, `since`-filterable, **platform-wide** ledger feed. Closes the "no platform-wide ledger log exists" gap from Ledger Integrity. |
+| `GET /webhooks/deliveries` | notification-service, **new, gateway-routed, merchant-facing** | Every delivery (success + failure), not just DLQ — closes the Developers-page webhook-log gap. **Caveat**: the downstream controller requires `X-Merchant-Id` as a non-optional header; only a `ROLE_MERCHANT` token gets one injected, so an operator token calling this will 400. |
+| `ProviderConfig` response enrichment | provider-gateway-service | Added `healthStatus`, `successRatePct`, `avgLatencyMs`. Closes the Provider Health "missing stats" gap — `GET /operator/providers` now returns everything the mock displays. |
+| CORS | gateway | `CorsFilterConfiguration` now allows `http://localhost:4200` with credentials, ahead of the JWT filter so preflight `OPTIONS` isn't 401'd. Closes the CORS gap — **but note it's hardcoded to exactly that one origin**, so a different dev port or a deployed frontend origin needs this list extended. |
+| `CreatePaymentRequest` gets a `customer` field | command-service | The merchant's checkout now passes a customer name/label through at creation time — this is what populates `PaymentView.customer` downstream. |
+
+Unchanged / still gaps: no API-key endpoint, no merchant webhook-URL registration
+endpoint, no "active disputes" concept, `GET /api/v1/payments/{id}` and
+`GET /api/v1/payments/{id}/events` are still **not** merchant-scoped (any authenticated
+merchant token can still fetch any payment or its timeline by ID — only the list/search
+and summary endpoints enforce `X-Merchant-Id` scoping).
 
 ---
 
-## 1. Overview (`#view-overview`)
+## 1. Frontend implementation status (the real gap now)
 
-| UI element | Gateway API | Status |
-|---|---|---|
-| Stat: Net volume (30d), delta | *(none)* | 🔴 No aggregation/analytics endpoint exists anywhere in the Catalog. Would need something like `GET /api/v1/payments/summary` on the query service — not present. |
-| Stat: Success rate | *(none)* | 🔴 Same — no aggregate endpoint. |
-| Stat: Avg. authorization time | *(none)* | 🔴 Same, and no timing data is captured in `PaymentView` to derive it from either. |
-| Stat: Active disputes | *(none)* | 🔴 Disputes aren't a modeled concept anywhere in the Catalog (no dispute endpoints, no `status` value for it in `PaymentView`). |
-| "Volume, last 14 days" chart | *(none)* | 🔴 Same aggregation gap as net volume. |
-| "Recent transactions" table (6 rows: id, customer, method, status, amount) | would be `GET /api/v1/payments` (list) | 🔴 **Gap — no list endpoint exists.** The Catalog documents only `POST /api/v1/payments` (create) and `GET /api/v1/payments/{id}` (single, by ID) on the payment-query path. There is no "list payments for a merchant" or "recent payments feed" route at all, gateway-routed or otherwise. Every list-shaped view in this console (Overview's recent list, the full Transactions table) has **no backing route today.** |
+The Angular app under `frontend/src/app/` is being built incrementally, and its
+service/model layer was authored **before** BE-01..08 landed, using `STUB(BE-xx)`
+comments as placeholders. Several of those stubs are now stale: the backend shipped,
+but the frontend code wasn't updated to match what it actually returns.
 
----
-
-## 2. Transactions (`#view-transactions`)
-
-| UI element | Gateway API | Status |
-|---|---|---|
-| Status filter chips (All/Captured/Pending/Failed/Refunded) | would be `GET /api/v1/payments?status=...` | 🔴 Same missing-list-endpoint gap as above; a status filter param has nothing to attach to. |
-| Global search (`#globalSearch`, by ID or customer) | would be `GET /api/v1/payments?q=...` | 🔴 Same gap. Also: `PaymentView` has no `customer` field (see §3 below), so even a hypothetical list endpoint couldn't search by customer name without a schema change. |
-| Table columns: ID, Customer, Method, Provider, Status, Created, Amount | — | 🟡/🔴 `ID`→`paymentId`, `Status`→`status`, `Amount`→`amountMinor`/`currency` would map onto `PaymentView` fields fine *if* a list endpoint existed. `Customer`, `Method` (card brand/last4), `Provider` (display name vs. `providerRef`), and `Created` (timestamp) are **not present in `PaymentView` at all** — see §3. |
-| Row click → open detail | `GET /api/v1/payments/{id}` | 🟢 Clean match — this is the one place the console's data shape lines up with a real, gateway-routed endpoint. |
-
----
-
-## 3. Transaction Detail (`#view-detail`)
-
-| UI element | Gateway API | Status |
-|---|---|---|
-| `dAmount`, `dId` | `GET /api/v1/payments/{id}` → `amountMinor`+`currency`, `paymentId` | 🟢 |
-| `dStatus` pill | `GET /api/v1/payments/{id}` → `status` | 🟢 (UI statuses `captured/pending/failed/refunded` vs. catalog's example values `PENDING/CAPTURED/DECLINED/REFUNDED` — casing/vocabulary should be confirmed to match exactly; UI currently hardcodes its own four lowercase values and will need a mapping table either way since "failed" ≠ "DECLINED" verbatim.) |
-| `dCustomer` | *(none)* | 🟡 **Missing field.** `PaymentView` has no customer name/email. |
-| `dMethod` (card brand + last4) | *(none)* | 🟡 **Missing field.** `PaymentView` has no card/payment-method info. The command-service *request* takes a raw `cardNumber`, but nothing in the response path echoes back a masked brand/last4. |
-| `dProvider` | `providerRef` (loosely) | 🟡 `PaymentView.providerRef` is a provider reference string, not a display name like "Provider A"/"Provider B" — would need either a lookup against `GET /operator/providers` (operator-only!) or a new field. |
-| `dCreated` | *(none)* | 🟡 **Missing field.** No `createdAt`/timestamp anywhere in `PaymentView`. |
-| `dIdem` (idempotency key) | *(none)* | 🟡 **Missing field.** The `Idempotency-Key` header is accepted on `POST /api/v1/payments` but never echoed back by `GET /api/v1/payments/{id}`. |
-| Timeline (`Payment created → Authorized → Captured → Ledger entry posted → Webhook delivered → Refund requested → Refunded`, with timestamps per step) | *(none)* | 🔴 **No endpoint returns a per-payment event timeline.** `/operator/saga-events` (operator-only) returns one row per Temporal workflow (`status`, `startTime`, `closeTime`) — not a step-by-step audit trail, and it's keyed by `workflowId`, not `paymentId`. Building this timeline for real needs either a new "payment events" endpoint or correlating `workflowId`↔`paymentId`, which the Catalog gives no mechanism for. |
-| Decline reason note on failed step | `declineReason` | 🟢 Matches `PaymentView.declineReason`. |
-| "Refund" button → `doRefund()` | `POST /api/v1/payments/{id}/refund` | 🟢 Clean match (`ROLE_MERCHANT`/`ROLE_OPERATOR`, no body). Note the UI's `confirm()` dialog is purely client-side; the real endpoint returns 200 with an empty body, so the UI's optimistic `t.status = "refunded"` will need to instead re-poll `GET /api/v1/payments/{id}` since the command is fire-and-forget (saga-driven, async). |
-| "Raw event" JSON panel (`payment.updated` payload: `object`, `payment_method`, `idempotency_key`, `created`) | *(none)* | 🔴 This is a Stripe-style webhook-payload mock; no such webhook event schema is defined anywhere in the Catalog (`/internal/webhooks/dispatch` only takes an opaque `payload` map — the shape isn't specified). |
+| Frontend piece | Real backend status | Frontend status | Gap |
+|---|---|---|---|
+| `AuthService.login/refreshAccessToken/revokeAndLogout` (`core/services/auth.service.ts`) | `POST /auth/token`, `/auth/refresh`, `/auth/revoke` — unchanged, already gateway-routed | 🟢 **Fully wired**, including the 401→refresh→retry flow in `auth.interceptor.ts` and real role re-issuance in `switchRole()` | None — this is the one area that's further ahead of the old static mock, which never called `/auth/token` at all. |
+| `PaymentService.getPayment()` / `.refundPayment()` | `GET /api/v1/payments/{id}`, `POST /api/v1/payments/{id}/refund` | 🟢 Wired to the real endpoints | None. |
+| `PaymentService.listPayments()` | `GET /api/v1/payments` **now exists and is gateway-routed** (BE-02/03) | ⚪ Still `return of(MOCK_PAYMENTS).pipe(delay(300))` — comment says `// TODO: Wire to backend once BE-02 is merged`, but BE-02 **is** merged | **Stale TODO.** `ListPaymentsFilter{status, q, page}` already matches the real query params (`status`, `q`, `page`, and the backend's `size` which the FE interface doesn't even expose yet) — this is a pure wiring task now, not blocked on backend work. |
+| `PaymentService.getPaymentEvents()` | `GET /api/v1/payments/{id}/events` **now exists** (BE-05) | ⚪ Still calls `buildMockTimeline()` over `MOCK_PAYMENTS` — comment says `// TODO: Wire to backend once BE-05 is merged`, but BE-05 **is** merged | Same pattern — stale TODO, ready to wire. |
+| `PaymentViewEnriched` model (`core/models/payment.model.ts`) | Real `PaymentView` now has `customer`, `paymentMethod:{brand,last4}`, `createdAt`, `idempotencyKey`, `providerDisplayName` | 🟡 Model has `customerName?`, `method?` (a single pre-formatted string like `"Visa •••• 4242"`), `createdAt?`, `idempotencyKey?` — **no `providerDisplayName`** | **Field-name/shape drift**, not just missing wiring: `customer`≠`customerName`, and the real `paymentMethod` is a `{brand, last4}` object while the FE expects one pre-joined display string. Whoever wires `listPayments`/`getPayment` to the real response will need to rename/reshape these, not just flip a stub flag. |
+| `LedgerService`, `OperatorService` (`core/services/ledger.service.ts`, `operator.service.ts`) | `GET /accounts/.../balance`, `GET /ledger`, `POST /payouts`, `GET /payouts/{id}`, `POST /operator/payouts/sweep`, `GET /operator/ledger/entries`, `GET /operator/providers`, `PATCH /operator/providers/{id}/routing`, `GET /operator/saga-events`, `GET /operator/webhooks/dlq`, `GET /webhooks/deliveries` — **all exist and are gateway-routed today** | 🔴 Both service classes are empty shells (`// Methods added task-by-task (Task 5/6) as each feature needs them.`) | Not a backend gap at all — just sequencing. Every API these two services will eventually need already exists. |
+| `ProviderConfig` model (`core/models/operator.model.ts`) | Real response already includes `healthStatus`, `successRatePct`, `avgLatencyMs` (BE-07) | 🟡 FE model still only has `{id, name, priority, active}`, and separately defines a **`ProviderHealth`** stub (`{providerId, successRatePct, avgLatencyMs}`) marked `STUB(BE-07) — no real endpoint exists yet` | **Stale assumption about the shape of the fix.** BE-07 didn't ship a separate health endpoint — it folded health/stats directly into `ProviderConfig`. The FE model needs updating to match (add the three fields to `ProviderConfig`, drop/repurpose the separate `ProviderHealth` interface), not just "wire up a new call." |
+| `PaymentsSummary` model (`core/models/analytics.model.ts`) | Real `PaymentSummaryResponse`: `{netVolumeMinor, currency, volumeDeltaPct, successRatePct, avgAuthSeconds, dailyVolume[]}` | 🟡 FE model: `{netVolumeMinor, successRatePct, avgAuthTimeMs, dailyVolume[]}` — marked `STUB(BE-04) — no real endpoint exists yet`, also stale | **Unit mismatch, not just missing fields**: FE expects `avgAuthTimeMs` (milliseconds); backend returns `avgAuthSeconds` (seconds) — a naive wire-up would be off by 1000x. FE is also missing `currency` and `volumeDeltaPct` entirely. |
+| `SagaEventResponse` model (`operator.model.ts`) | Real: `{workflowId, status, startTime, closeTime}` — unchanged | 🟢 FE model matches exactly | No drift here — already correctly scoped down from the old static mock's wishful "narrative event text," which never existed on the backend either. |
+| `WebhookDeliveryResponse` model (`operator.model.ts`) | Real: same shape for both the operator DLQ list and the new merchant `GET /webhooks/deliveries` (BE-08 reuses the record) | 🟢 FE model matches; only the DLQ call is wired (presumably, under Tasks 5/6) — the new merchant-facing endpoint just needs a second method added, no model change | Minor: FE has no method at all yet for `GET /webhooks/deliveries` specifically. |
+| `LedgerEntryResponse` model (`ledger.model.ts`) | Real response now also has a `status` field (`"POSTED"`, BE-06) | 🟡 FE model missing `status` | Small, easy fix once `LedgerService` is implemented. |
+| `routes` for `overview`, `ledger`, `sandbox`, `developers`, `operator/*` | — | 🔴 All still `PlaceholderView` (`app.routes.ts`) | Expected at this stage — only `transactions`/`transactions/:id` and `signin` are real components so far. Listed here just so this doc's view-by-view section below (§2) isn't mistaken for "already built." |
 
 ---
 
-## 4. Ledger (merchant view, `#view-ledger`)
+## 2. Console view → Gateway API mapping (design-mock baseline, now mostly backed)
 
-| UI element | Gateway API | Status |
-|---|---|---|
-| "Merchant payable (available)" balance | `GET /accounts/{merchantId}/{accountName}/balance` | 🟠 **Not gateway-routed.** Route exists on `payflow-ledger-service` but the Catalog explicitly lists it under "not reachable via `localhost:8080` today." |
-| "Payout in-transit" balance | same route, different `accountName` | 🟠 Same gap. |
-| Double-entry log table (Date, Transaction, Debit account, Credit account, Status, Amount) | `GET /ledger?transaction={transactionRef}` | 🟠🔴 Doubly gapped: (1) not gateway-routed per Catalog, and (2) even if it were, that route returns entries for **one** `transactionRef` at a time — there is no "all ledger entries for this merchant across all transactions" endpoint, which is what this table actually needs to render more than one row. Also `LedgerEntryResponse` has no `status` field ("Posted") the table displays. |
-| "Request Payout" button → `requestPayout()` | `POST /payouts` | 🟠 **Not gateway-routed.** Also the UI's optimistic transition (In-Transit → Settled after a 2.4s `setTimeout`) is fully fake; a real integration would need to poll `GET /payouts/{id}` for status (also not gateway-routed) rather than assume settlement. |
+This keeps the same per-view structure as the first pass, against the original
+`PayFlow Console.html` design mock, since that's still the product spec the real
+frontend is being built toward (per the route list in §1, most of these views aren't
+implemented in Angular yet — they're `PlaceholderView`). Status now reflects the
+**backend**, not the frontend.
 
-**Section-wide gap**: every ledger/payout API this view needs exists on `payflow-ledger-service` but **none of them are reachable through the Gateway today** (per Catalog §3). This entire view is non-functional against `localhost:8080` as things stand, independent of the UI still being static-mocked.
+### Overview
+- Stat cards (net volume, success rate, avg. auth time) + 14-day chart → `GET /api/v1/payments/summary`. 🟢 Backend-complete.
+- "Active disputes" stat → 🔴 still no concept anywhere.
+- "Recent transactions" (6 rows) → `GET /api/v1/payments?size=6` (or client-side slice of a `page=0` call). 🟢.
 
----
+### Transactions
+- Status filter chips, search box, full table → `GET /api/v1/payments?status=&q=&page=&size=`. 🟢. Table's Customer/Method/Provider/Created columns now map onto `customer`/`paymentMethod`/`providerDisplayName`/`createdAt` on each `PaymentView` in the page content. 🟢.
+- Row click → `GET /api/v1/payments/{id}`. 🟢 (unchanged from first pass).
 
-## 5. Ledger Integrity (operator, `#view-integrity`)
+### Transaction Detail
+- Amount/ID/status/decline reason → `PaymentView`. 🟢.
+- Customer, method (brand+last4), provider display name, created, idempotency key → all now present on `PaymentView`. 🟢 (was 🟡/🔴 in the first pass).
+- Timeline → `GET /api/v1/payments/{id}/events`, returns step label (`description`), timestamp, and a status to derive done/pending/failed styling from. 🟢 (was 🔴).
+- Refund button → `POST /api/v1/payments/{id}/refund`. 🟢 (unchanged).
+- Gap carried forward: neither `GET /api/v1/payments/{id}` nor `.../events` is merchant-scoped — any merchant token can still pull any payment/timeline by ID, not just their own.
 
-| UI element | Gateway API | Status |
-|---|---|---|
-| Integrity banner ("Balanced — total debits − total credits = $0.00") | `GET /operator/ledger/integrity` → `{totalDebitsMinor, totalCreditsMinor, balanced}` | 🟢 Clean, gateway-routed, `ROLE_OPERATOR`. (UI note: the banner should compute `totalDebitsMinor - totalCreditsMinor` and the ✓/✗ icon from `balanced`, rather than hardcoding "$0.00" and a green check — that's a UI wiring task, not an API gap.) |
-| Platform account cards (Provider settlement, Platform bank, Platform fee revenue, Merchant payable all-merchants, Payout in-transit all-merchants) | `GET /accounts/{accountName}/balance` per card | 🟠 Same not-gateway-routed gap as §4, repeated per platform account name. |
-| "Platform double-entry log" table (across all merchants) | *(none)* | 🔴 **Gap — no endpoint exists for this at all.** `GET /ledger?transaction=X` is scoped to one transaction; there is no platform-wide ledger feed in the Catalog, gateway-routed or not. This is a bigger gap than §4's — it's missing from the ledger service's surface entirely, not just missing from the gateway. |
+### Ledger (merchant)
+- Balances → `GET /accounts/{merchantId}/{accountName}/balance`. 🟢 (was 🟠).
+- Double-entry log for one transaction → `GET /ledger?transaction=`. 🟢 (was 🟠), though still scoped to one `transactionRef` at a time — a merchant-wide "all my transactions' entries" view still needs multiple calls or a new merchant-scoped feed (the new `GET /operator/ledger/entries` is platform-wide and `ROLE_OPERATOR`-only, so it doesn't cover this use case).
+- "Request Payout" → `POST /payouts`, status via `GET /payouts/{id}`. 🟢 (was 🟠).
 
----
+### Ledger Integrity (operator)
+- Integrity banner → `GET /operator/ledger/integrity`. 🟢 (unchanged).
+- Platform account cards → `GET /accounts/{accountName}/balance` per card. 🟢 (was 🟠).
+- Platform-wide double-entry log → `GET /operator/ledger/entries`. 🟢 (was 🔴 — this endpoint didn't exist at all before).
 
-## 6. Provider Health (operator, `#view-provider-health`)
+### Provider Health (operator)
+- Name/id/active toggle → `GET`/`PATCH /operator/providers/{id}/routing`. 🟢 (unchanged).
+- Healthy/Degraded pill, success rate, avg. latency → now all on `ProviderConfig`. 🟢 (was 🟡).
+- `priority` → still readable/patchable but not surfaced in the UI design. Unchanged observation from the first pass.
 
-| UI element | Gateway API | Status |
-|---|---|---|
-| Provider name, id | `GET /operator/providers` → `ProviderConfig[].name`/`.id` | 🟢 |
-| Active/paused toggle | `PATCH /operator/providers/{id}/routing` → `{active}` | 🟢 Clean match, `ROLE_OPERATOR`. |
-| "Healthy"/"Degraded" status pill | *(none)* | 🟡 **Missing field.** `ProviderConfig` has no health-status field (`{id, name, priority, active}` only). |
-| Success rate, avg. latency stats | *(none)* | 🟡 **Missing fields.** Not present on `ProviderConfig`; would need new fields or a separate metrics endpoint. |
-| `priority` field | `ProviderConfig.priority` | 🟡 **Unused in UI.** Backend has it (and `PATCH .../routing` accepts updating it), but the console never displays or edits priority — only the active toggle is wired. Worth flagging as a UI gap in the other direction: a capability the backend exposes that the console doesn't surface. |
-| Routing note text at bottom | derived client-side from the two toggles | 🟢 No API needed — purely reflects local toggle state. |
+### Saga Events (operator)
+- `GET /operator/saga-events` unchanged: `{workflowId, status, startTime, closeTime}`, no narrative text, keyed by `workflowId` not payment ID. Still 🟡 exactly as before — BE-04..08 didn't touch the orchestrator.
 
----
-
-## 7. Saga Events (operator, `#view-saga-events`)
-
-| UI element | Gateway API | Status |
-|---|---|---|
-| Table: Time, Transaction, Event, Status | `GET /operator/saga-events` → `SagaEventResponse[] {workflowId, status, startTime, closeTime}` | 🟡 Route is gateway-routed and `ROLE_OPERATOR`-gated — the closest real match of any operator view — but the shapes diverge: UI's "Transaction" column shows a `pi_...` payment ID while the response key is `workflowId` (Catalog doesn't document a guaranteed 1:1 naming convention between the two); UI's "Event" column is a free-text narrative ("Ledger write failed → compensating refund issued (6b)") that doesn't exist in `SagaEventResponse` — only `status`/`startTime`/`closeTime` do; and the UI implies a feed of *multiple* discrete events per saga, while the endpoint gives one row per workflow execution (start/close), not a step-by-step compensation log. |
-
----
-
-## 8. Developers (merchant, `#view-developers`)
-
-| UI element | Gateway API | Status |
-|---|---|---|
-| API keys list (Test/Live publishable + secret keys, created/last-used, copy) | *(none)* | 🔴 **Gap — no API-key concept exists anywhere in the Catalog.** Auth is JWT bearer-token based (`POST /auth/token`/`/auth/refresh`/`/auth/revoke`), issued per role, not per-merchant long-lived key pairs. This entire panel models a Stripe-style key system the backend doesn't have. |
-| Webhook endpoint URL + "Copy URL" | *(none)* | 🔴 No endpoint to register/view a merchant's own webhook URL. `/internal/webhooks/dispatch` is an orchestrator-internal enqueue call, not merchant-facing config. |
-| "Recent deliveries" table (event, status code, attempt, delivered time) | `GET /operator/webhooks/dlq` (closest match) | 🔴🟡 Doubly wrong fit: (1) this Developers view is under `role-merchant-only` nav, but the only webhook-delivery-listing route in the Catalog, `GET /operator/webhooks/dlq`, requires `ROLE_OPERATOR` — a merchant token would get a 403 even if it were wired up; and (2) that route only returns **dead-lettered** (failed/retrying) deliveries (`WebhookDeliveryResponse[]` with `attemptCount`, `responseCode`, `nextRetryAt`), whereas the UI table shows a mix including clean `200` first-attempt deliveries that would never appear in a DLQ. There is no "all webhook deliveries, successful and failed, for my merchant account" endpoint. |
+### Developers
+- Webhook "Recent deliveries" (mixed success/failure) → `GET /webhooks/deliveries`, merchant-scoped. 🟢 (was 🔴 — no such endpoint existed).
+- API keys panel → still 🔴, no concept anywhere in the backend.
+- Webhook URL registration/display → still 🔴, no endpoint.
 
 ---
 
-## Card simulator — not a console concern
+## Summary of remaining gaps (backend)
 
-**No card-simulator UI exists in this console, and it shouldn't.** `POST
-/api/v1/payments` (the endpoint the Catalog's Conventions section documents the
-test-card routing for — `4242`→approved, `0002`/`0069`→declined, `0119`→timeout — plus
-the `X-Force-Ledger-Failure`/`forceLedgerFailure` saga-compensation trigger) is called
-**server-to-server by the merchant's own website/backend**, not by this console. The
-merchant (Northline Goods, in this prototype) collects the card on their own checkout
-page and their backend calls PayFlow's Payment API directly with the `Idempotency-Key`
-header and `cardNumber` in the body — PayFlow is the processor here, the console is
-just the merchant/operator's dashboard onto payments that already exist. Card numbers
-in the console only ever appear as masked display strings in the (mocked) transaction
-list (e.g. `"Visa •••• 4242"`); that's correct — the console should never see a raw
-card number at all. Initially corrected in this doc's first pass, which wrongly flagged
-this as a gap.
+- No API-key management endpoint — the whole Developers "API keys" panel has nothing to call.
+- No endpoint to register or display a merchant's own webhook URL.
+- No "active disputes" concept anywhere.
+- `GET /api/v1/payments/{id}` and `GET /api/v1/payments/{id}/events` are not merchant-scoped (any merchant token can read any payment/timeline by ID).
+- `GET /webhooks/deliveries` requires `X-Merchant-Id`, so it 400s for an operator-role token — fine for the Developers page (merchant-only) but worth knowing if an operator-facing "all deliveries" view is ever wanted.
+- `PaymentSummaryResponse.volumeDeltaPct` and `.avgAuthSeconds` are hardcoded constants, not derived from real history — looks real, isn't yet.
+- CORS allowlist is a single hardcoded origin (`http://localhost:4200`).
 
-This reframes who integrates with what:
-- **Merchant's website/backend** → `POST /api/v1/payments` (create), reading back
-  `GET /api/v1/payments/{id}` to poll status, and receiving webhook callbacks.
-- **This console** → read-mostly views over payments, ledger, and (for operators)
-  platform health — plus the one write action it does own, `POST
-  /api/v1/payments/{id}/refund`.
+## Summary of remaining gaps (frontend catching up to backend)
 
----
-
-## Summary of gaps
-
-### No backend route exists at all (🔴)
-- A bulk/list payments endpoint (`GET /api/v1/payments` with filter/search) — needed by
-  Overview's recent list and the entire Transactions view.
-- Any analytics/aggregation endpoint (net volume, success rate, avg. auth time, disputes,
-  the 14-day volume chart).
-- A per-payment event/audit timeline endpoint (Transaction Detail's timeline).
-- A platform-wide (all-merchants) ledger entry feed (Ledger Integrity's double-entry log).
-- An API-key management surface (Developers' key list) — the backend's auth model has no
-  such concept.
-- A merchant-facing webhook-URL registration/config endpoint.
-- A test/live environment concept of any kind.
-
-Note: `POST /api/v1/payments` is deliberately *not* called from the console — it's
-called server-to-server from the merchant's own website/backend, which owns the
-checkout/card-collection UI. The console only consumes its effects (via the list/detail
-endpoints above, which are the actual gap).
-
-### Route exists, but not reachable via the Gateway (🟠, per Catalog §3)
-- `GET /accounts/{accountName}/balance`, `GET /accounts/{merchantId}/{accountName}/balance`
-  — needed by both Ledger views' balance cards.
-- `GET /ledger?transaction=...` — needed by both ledger tables (and even if routed, it's
-  scoped to one transaction, not a merchant- or platform-wide feed).
-- `POST /payouts`, `GET /payouts/{id}`, `POST /payouts/sweep` — needed by "Request Payout."
-
-### Route exists and is gateway-routed, but response schema is missing UI fields (🟡)
-- `PaymentView` (`GET /api/v1/payments/{id}`) has no `customer`, payment-method/card
-  display, `createdAt`, idempotency key, or provider display name — all rendered in the
-  Detail view today from mock data only.
-- `ProviderConfig` (`GET /operator/providers`) has no health-status, success-rate, or
-  latency fields — all shown in Provider Health from mock data only.
-- `SagaEventResponse` (`GET /operator/saga-events`) has no narrative event description,
-  and is keyed by `workflowId` rather than payment/transaction ID.
-- `GET /operator/webhooks/dlq` only covers dead-lettered deliveries and is
-  `ROLE_OPERATOR`-only, while the Developers view (merchant-facing) shows a mixed
-  success/failure delivery log.
-
-### Backend capability unused by the UI
-- `ProviderConfig.priority` is readable and patchable via
-  `PATCH /operator/providers/{id}/routing`, but Provider Health never displays or edits it.
-
-### Role/auth model mismatch
-- Sign-in and the Merchant/Operator rail toggle never call `POST /auth/token`; there is
-  no token acquisition, storage, or re-issuance on role switch anywhere in the console,
-  so none of the `Authorization: Bearer` / `ROLE_OPERATOR` gating the Catalog documents
-  is actually exercised by this prototype yet.
+- `PaymentService.listPayments()` and `.getPaymentEvents()` still call mocks; both target endpoints are live. Pure wiring work, not blocked.
+- `PaymentViewEnriched`/`PaymentsSummary`/`ProviderConfig` FE models have drifted from the real DTOs they were stubbed against (field renames, a unit mismatch on `avgAuthSeconds` vs `avgAuthTimeMs`, and health fields the FE still expects as a separate, non-existent endpoint). These need a model update pass, not just new HTTP calls.
+- `LedgerService` and `OperatorService` are empty — every endpoint they'll need already exists server-side.
+- `overview`, `ledger`, `sandbox`, `developers`, and all three `operator/*` routes are still `PlaceholderView` — expected at this stage of the build, noted here only to keep this doc from overstating what's actually live in the app today.
