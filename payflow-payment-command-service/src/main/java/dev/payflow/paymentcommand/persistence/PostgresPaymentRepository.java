@@ -12,6 +12,7 @@ import dev.payflow.paymentcommand.domain.PaymentCreated;
 import dev.payflow.paymentcommand.domain.PaymentDomainEvent;
 import dev.payflow.paymentcommand.domain.PaymentFailed;
 import dev.payflow.paymentcommand.domain.PaymentId;
+import dev.payflow.paymentcommand.domain.PaymentRefunded;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
@@ -141,6 +142,7 @@ public class PostgresPaymentRepository
       case PaymentAuthorized e -> "payment.authorized";
       case PaymentCaptured e -> "payment.captured";
       case PaymentFailed e -> "payment.failed";
+      case PaymentRefunded e -> "payment.refunded";
     };
   }
 

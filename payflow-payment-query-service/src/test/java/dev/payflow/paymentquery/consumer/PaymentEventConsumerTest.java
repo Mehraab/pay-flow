@@ -76,6 +76,18 @@ class PaymentEventConsumerTest {
   }
 
   @Test
+  void paymentRefundedEventUpdatesStatusWithoutRequiringAnyPayloadFields() {
+    UUID paymentId = UUID.randomUUID();
+    store.save(new PaymentView(paymentId, UUID.randomUUID(), 21400, "USD", "CAPTURED", "mock-ch-abc123"));
+
+    consumer.onPaymentEvent(paymentId.toString(), "payment.refunded", "{}");
+
+    PaymentView view = store.findById(paymentId).orElseThrow();
+    assertThat(view.status()).isEqualTo("REFUNDED");
+    assertThat(view.providerRef()).isEqualTo("mock-ch-abc123");
+  }
+
+  @Test
   void anEventForAPaymentNeverSeenBeforeIsIgnoredRatherThanCrashing() {
     UUID paymentId = UUID.randomUUID();
 
@@ -88,7 +100,7 @@ class PaymentEventConsumerTest {
   void anUnknownEventTypeIsIgnored() {
     UUID paymentId = UUID.randomUUID();
 
-    consumer.onPaymentEvent(paymentId.toString(), "payment.refunded", "{}");
+    consumer.onPaymentEvent(paymentId.toString(), "payment.something_else", "{}");
 
     assertThat(store.findById(paymentId)).isEmpty();
   }

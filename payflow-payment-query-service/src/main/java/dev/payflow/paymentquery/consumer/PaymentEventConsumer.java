@@ -37,6 +37,7 @@ public class PaymentEventConsumer {
       case "payment.created" -> handleCreated(paymentId, payload);
       case "payment.captured" -> handleCaptured(paymentId, payload);
       case "payment.failed" -> store.updateStatus(paymentId, "FAILED", null);
+      case "payment.refunded" -> store.updateStatus(paymentId, "REFUNDED", null);
       default -> {
         // Unknown/future event type — ignored rather than failing the consumer.
       }

@@ -6,6 +6,7 @@ import dev.payflow.cqrs.bus.CommandBus;
 import dev.payflow.paymentcommand.command.CapturePaymentCommand;
 import dev.payflow.paymentcommand.command.CreatePaymentCommand;
 import dev.payflow.paymentcommand.command.FailPaymentCommand;
+import dev.payflow.paymentcommand.command.RefundPaymentCommand;
 import dev.payflow.paymentcommand.domain.PaymentId;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
@@ -49,6 +50,18 @@ public class PaymentCommandController {
   @PostMapping("/internal/payments/{id}/fail")
   public ResponseEntity<Void> fail(@PathVariable UUID id, @RequestBody FailRequest request) {
     commandBus.dispatch(new FailPaymentCommand(new PaymentId(id), request.declineReason()));
+    return ResponseEntity.ok().build();
+  }
+
+  @PostMapping("/internal/payments/{id}/refund")
+  public ResponseEntity<Void> refundInternal(@PathVariable UUID id) {
+    commandBus.dispatch(new RefundPaymentCommand(new PaymentId(id)));
+    return ResponseEntity.ok().build();
+  }
+
+  @PostMapping("/payments/{id}/refund")
+  public ResponseEntity<Void> refund(@PathVariable UUID id) {
+    commandBus.dispatch(new RefundPaymentCommand(new PaymentId(id)));
     return ResponseEntity.ok().build();
   }
 }

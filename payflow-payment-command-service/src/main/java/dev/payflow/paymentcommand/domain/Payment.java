@@ -82,6 +82,14 @@ public final class Payment extends AggregateRoot<PaymentId, PaymentDomainEvent> 
     raise(new PaymentFailed(EventMetadata.next(id(), UUID.randomUUID(), null), declineReason));
   }
 
+  public void refund() {
+    if (status != PaymentStatus.CAPTURED) {
+      throw new IllegalStateException(
+          "Cannot refund payment %s in status %s".formatted(id(), status));
+    }
+    raise(new PaymentRefunded(EventMetadata.next(id(), UUID.randomUUID(), null)));
+  }
+
   @Override
   protected void apply(PaymentDomainEvent event) {
     switch (event) {
@@ -103,6 +111,7 @@ public final class Payment extends AggregateRoot<PaymentId, PaymentDomainEvent> 
         this.declineReason = e.declineReason();
         this.status = PaymentStatus.FAILED;
       }
+      case PaymentRefunded e -> this.status = PaymentStatus.REFUNDED;
     }
   }
 

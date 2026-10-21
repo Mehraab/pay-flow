@@ -106,6 +106,33 @@ class PaymentTest {
   }
 
   @Test
+  void refundFromCapturedSucceeds() {
+    var payment = Payment.create(PaymentId.generate(), merchantId, amount, "demo-011");
+    payment.capture("mock-ch-abc123");
+    payment.pullUncommittedEvents();
+
+    payment.refund();
+
+    assertThat(payment.status()).isEqualTo(PaymentStatus.REFUNDED);
+    assertThat(payment.pullUncommittedEvents()).hasSize(1).first().isInstanceOf(PaymentRefunded.class);
+  }
+
+  @Test
+  void refundFromCreatedIsRejected() {
+    var payment = Payment.create(PaymentId.generate(), merchantId, amount, "demo-012");
+
+    assertThatThrownBy(payment::refund).isInstanceOf(IllegalStateException.class);
+  }
+
+  @Test
+  void refundFromFailedIsRejected() {
+    var payment = Payment.create(PaymentId.generate(), merchantId, amount, "demo-013");
+    payment.fail("Insufficient funds");
+
+    assertThatThrownBy(payment::refund).isInstanceOf(IllegalStateException.class);
+  }
+
+  @Test
   void reconstituteRestoresStateWithoutRaisingEvents() {
     var id = PaymentId.generate();
 

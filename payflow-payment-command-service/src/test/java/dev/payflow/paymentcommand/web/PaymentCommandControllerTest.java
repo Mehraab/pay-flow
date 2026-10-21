@@ -11,6 +11,7 @@ import dev.payflow.cqrs.bus.CommandBus;
 import dev.payflow.paymentcommand.command.CapturePaymentCommand;
 import dev.payflow.paymentcommand.command.CreatePaymentCommand;
 import dev.payflow.paymentcommand.command.FailPaymentCommand;
+import dev.payflow.paymentcommand.command.RefundPaymentCommand;
 import dev.payflow.paymentcommand.domain.PaymentId;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -80,5 +81,23 @@ class PaymentCommandControllerTest {
         .andExpect(status().isOk());
 
     verify(commandBus).dispatch(new FailPaymentCommand(new PaymentId(id), "Insufficient funds"));
+  }
+
+  @Test
+  void internalRefundDispatchesARefundPaymentCommandAndReturns200() throws Exception {
+    var id = UUID.randomUUID();
+
+    mockMvc.perform(post("/internal/payments/{id}/refund", id)).andExpect(status().isOk());
+
+    verify(commandBus).dispatch(new RefundPaymentCommand(new PaymentId(id)));
+  }
+
+  @Test
+  void publicRefundDispatchesARefundPaymentCommandAndReturns200() throws Exception {
+    var id = UUID.randomUUID();
+
+    mockMvc.perform(post("/payments/{id}/refund", id)).andExpect(status().isOk());
+
+    verify(commandBus).dispatch(new RefundPaymentCommand(new PaymentId(id)));
   }
 }

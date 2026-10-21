@@ -51,6 +51,17 @@ class PaymentEventTest {
   }
 
   @Test
+  void paymentRefundedEventCarriesItsPaymentId() {
+    var paymentId = UUID.randomUUID();
+    var metadata = EventMetadata.next(paymentId, UUID.randomUUID(), null);
+
+    var event = new PaymentRefundedEvent(metadata, paymentId);
+
+    assertThat(event.aggregateId()).isEqualTo(paymentId);
+    assertThat(event.paymentId()).isEqualTo(paymentId);
+  }
+
+  @Test
   void sealedPaymentEventSwitchIsExhaustive() {
     PaymentEvent event =
         new PaymentFailedEvent(
@@ -63,6 +74,7 @@ class PaymentEventTest {
           case PaymentCreatedEvent e -> "created";
           case PaymentCapturedEvent e -> "captured";
           case PaymentFailedEvent e -> "failed";
+          case PaymentRefundedEvent e -> "refunded";
         };
 
     assertThat(description).isEqualTo("failed");

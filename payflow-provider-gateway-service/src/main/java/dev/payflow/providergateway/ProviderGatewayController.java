@@ -3,6 +3,7 @@ package dev.payflow.providergateway;
 import dev.payflow.common.dto.AuthorizePaymentRequest;
 import dev.payflow.common.dto.AuthorizePaymentResponse;
 import dev.payflow.common.dto.VoidChargeRequest;
+import dev.payflow.common.dto.VoidChargeResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -29,8 +30,7 @@ public class ProviderGatewayController {
   }
 
   @PostMapping("/internal/providers/void")
-  public ResponseEntity<Void> voidCharge(@RequestBody VoidChargeRequest request) {
-    providerGateway.voidCharge(request.providerRef());
-    return ResponseEntity.ok().build();
+  public ResponseEntity<VoidChargeResponse> voidCharge(@RequestBody VoidChargeRequest request) {
+    return ResponseEntity.ok(providerGateway.voidCharge(request.providerRef()));
   }
 }
