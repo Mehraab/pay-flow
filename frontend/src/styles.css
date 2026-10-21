@@ -1,0 +1,102 @@
+/* You can add global styles to this file, and also import other style files */
+
+/* ============ DESIGN TOKENS (ported verbatim from PayFlow Console.html) ============ */
+:root {
+  --bg: #eef1f6;
+  --surface: #ffffff;
+  --surface-2: #f5f7fb;
+  --surface-3: #ebeef4;
+  --ink: #121826;
+  --muted: #5b6578;
+  --faint: #8992a3;
+  --border: #dee3ec;
+  --border-soft: #e8ebf1;
+  --accent: #2f5fe0;
+  --accent-ink: #ffffff;
+  --status-captured: #0e8f6b;
+  --status-pending: #ad6a14;
+  --status-failed: #c23b3b;
+  --status-refunded: #6b57c9;
+
+  --rail-bg: #10151f;
+  --rail-ink: #e7eaf2;
+  --rail-muted: #8690a6;
+  --rail-active-bg: #1c2436;
+  --rail-border: #232b3c;
+  --rail-accent: #7ea0ff;
+
+  --shadow-card: 0 1px 2px rgba(18, 24, 38, 0.04), 0 1px 1px rgba(18, 24, 38, 0.03);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #0a0d14;
+    --surface: #121723;
+    --surface-2: #161c2a;
+    --surface-3: #1b2232;
+    --ink: #e8ecf4;
+    --muted: #9199ac;
+    --faint: #6b7488;
+    --border: #283150;
+    --border-soft: #1e2538;
+    --accent: #6f93ff;
+    --accent-ink: #0a0d14;
+    --status-captured: #3fc793;
+    --status-pending: #e0a857;
+    --status-failed: #e2685f;
+    --status-refunded: #a89aeb;
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #0a0d14;
+  --surface: #121723;
+  --surface-2: #161c2a;
+  --surface-3: #1b2232;
+  --ink: #e8ecf4;
+  --muted: #9199ac;
+  --faint: #6b7488;
+  --border: #283150;
+  --border-soft: #1e2538;
+  --accent: #6f93ff;
+  --accent-ink: #0a0d14;
+  --status-captured: #3fc793;
+  --status-pending: #e0a857;
+  --status-failed: #e2685f;
+  --status-refunded: #a89aeb;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+
+.mono {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+.tab {
+  font-variant-numeric: tabular-nums;
+}
+button {
+  font-family: inherit;
+}
+a {
+  color: inherit;
+}
