@@ -73,6 +73,25 @@ public class PaymentGatewayController {
     return request.body(body).exchange(this::relay);
   }
 
+  // Declared ahead of GET /api/v1/payments/{id} — Spring MVC must never mistake "summary" for a
+  // payment id.
+  @GetMapping("/api/v1/payments/summary")
+  public ResponseEntity<byte[]> paymentsSummary(
+      @RequestHeader(value = "X-Merchant-Id", required = false) String merchantId,
+      @RequestHeader(value = "Authorization", required = false) String authorization,
+      @RequestParam(value = "days", defaultValue = "30") int days) {
+    URI uri =
+        UriComponentsBuilder.fromUriString(paymentQueryUrl + "/payments/summary").queryParam("days", days).build().toUri();
+    RequestHeadersSpec<?> spec = restClient.get().uri(uri);
+    if (merchantId != null) {
+      spec = spec.header("X-Merchant-Id", merchantId);
+    }
+    if (authorization != null) {
+      spec = spec.header("Authorization", authorization);
+    }
+    return spec.exchange(this::relay);
+  }
+
   @GetMapping("/api/v1/payments/{id}")
   public ResponseEntity<byte[]> getPayment(@PathVariable String id) {
     return restClient.get().uri(paymentQueryUrl + "/payments/{id}", id).exchange(this::relay);
@@ -81,6 +100,11 @@ public class PaymentGatewayController {
   @PostMapping("/api/v1/payments/{id}/refund")
   public ResponseEntity<byte[]> refundPayment(@PathVariable String id) {
     return restClient.post().uri(paymentCommandUrl + "/payments/{id}/refund", id).exchange(this::relay);
+  }
+
+  @GetMapping("/api/v1/payments/{id}/events")
+  public ResponseEntity<byte[]> paymentTimeline(@PathVariable String id) {
+    return restClient.get().uri(paymentQueryUrl + "/payments/{id}/events", id).exchange(this::relay);
   }
 
   @GetMapping("/api/v1/payments")
@@ -147,6 +171,39 @@ public class PaymentGatewayController {
   @PostMapping("/operator/payouts/sweep")
   public ResponseEntity<byte[]> sweepPayouts() {
     return restClient.post().uri(ledgerUrl + "/payouts/sweep").exchange(this::relay);
+  }
+
+  @GetMapping("/operator/ledger/entries")
+  public ResponseEntity<byte[]> ledgerEntriesFeed(
+      @RequestParam(value = "since", required = false) String since,
+      @RequestParam(value = "page", required = false) Integer page,
+      @RequestParam(value = "size", required = false) Integer size) {
+    URI uri =
+        UriComponentsBuilder.fromUriString(ledgerUrl + "/operator/ledger/entries")
+            .queryParamIfPresent("since", Optional.ofNullable(since))
+            .queryParamIfPresent("page", Optional.ofNullable(page))
+            .queryParamIfPresent("size", Optional.ofNullable(size))
+            .build()
+            .toUri();
+    return restClient.get().uri(uri).exchange(this::relay);
+  }
+
+  @GetMapping("/webhooks/deliveries")
+  public ResponseEntity<byte[]> webhookDeliveries(
+      @RequestHeader(value = "X-Merchant-Id", required = false) String merchantId,
+      @RequestParam(value = "page", required = false) Integer page,
+      @RequestParam(value = "size", required = false) Integer size) {
+    URI uri =
+        UriComponentsBuilder.fromUriString(notificationUrl + "/webhooks/deliveries")
+            .queryParamIfPresent("page", Optional.ofNullable(page))
+            .queryParamIfPresent("size", Optional.ofNullable(size))
+            .build()
+            .toUri();
+    RequestHeadersSpec<?> spec = restClient.get().uri(uri);
+    if (merchantId != null) {
+      spec = spec.header("X-Merchant-Id", merchantId);
+    }
+    return spec.exchange(this::relay);
   }
 
   @RequestMapping(value = "/operator/providers/**", method = {RequestMethod.GET, RequestMethod.PATCH})

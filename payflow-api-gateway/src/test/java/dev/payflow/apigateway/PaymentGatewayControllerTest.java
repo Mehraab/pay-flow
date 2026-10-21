@@ -42,6 +42,7 @@ class PaymentGatewayControllerTest {
   private HttpServer commandBackend;
   private HttpServer queryBackend;
   private HttpServer ledgerBackend;
+  private HttpServer notificationBackend;
   private volatile String lastCommandIdempotencyKey;
   private volatile String lastCommandBody;
   private volatile String lastCommandPath;
@@ -54,6 +55,9 @@ class PaymentGatewayControllerTest {
   private volatile String lastLedgerQuery;
   private volatile String lastLedgerMethod;
   private volatile String lastLedgerBody;
+  private volatile String lastNotificationPath;
+  private volatile String lastNotificationQuery;
+  private volatile String lastNotificationMerchantIdHeader;
 
   @BeforeEach
   void startBackends() throws IOException {
@@ -95,6 +99,19 @@ class PaymentGatewayControllerTest {
             lastQueryAuthorizationHeader = exchange.getRequestHeaders().getFirst("Authorization");
             status = 200;
             body = "{\"content\":[],\"page\":0,\"size\":10,\"totalElements\":0,\"totalPages\":0}".getBytes(StandardCharsets.UTF_8);
+          } else if (path.equals("/payments/summary")) {
+            lastQueryPath = path;
+            lastQueryQuery = exchange.getRequestURI().getQuery();
+            lastQueryMerchantIdHeader = exchange.getRequestHeaders().getFirst("X-Merchant-Id");
+            lastQueryAuthorizationHeader = exchange.getRequestHeaders().getFirst("Authorization");
+            status = 200;
+            body =
+                "{\"netVolumeMinor\":0,\"currency\":\"USD\",\"volumeDeltaPct\":0.0,\"successRatePct\":100.0,\"avgAuthSeconds\":0.35,\"dailyVolume\":[]}"
+                    .getBytes(StandardCharsets.UTF_8);
+          } else if (path.endsWith("/events")) {
+            lastQueryPath = path;
+            status = 200;
+            body = "[]".getBytes(StandardCharsets.UTF_8);
           } else if (path.endsWith("/missing")) {
             status = 404;
             body = new byte[0];
@@ -125,7 +142,23 @@ class PaymentGatewayControllerTest {
     ledgerBackend.createContext("/accounts", ledgerHandler);
     ledgerBackend.createContext("/ledger", ledgerHandler);
     ledgerBackend.createContext("/payouts", ledgerHandler);
+    ledgerBackend.createContext("/operator", ledgerHandler);
     ledgerBackend.start();
+
+    notificationBackend = HttpServer.create(new InetSocketAddress("localhost", 8086), 0);
+    notificationBackend.createContext(
+        "/webhooks/deliveries",
+        exchange -> {
+          lastNotificationPath = exchange.getRequestURI().getPath();
+          lastNotificationQuery = exchange.getRequestURI().getQuery();
+          lastNotificationMerchantIdHeader = exchange.getRequestHeaders().getFirst("X-Merchant-Id");
+          byte[] body = "{\"content\":[],\"page\":0,\"size\":20,\"totalElements\":0,\"totalPages\":0}".getBytes(StandardCharsets.UTF_8);
+          exchange.getResponseHeaders().add("Content-Type", "application/json");
+          exchange.sendResponseHeaders(200, body.length);
+          exchange.getResponseBody().write(body);
+          exchange.close();
+        });
+    notificationBackend.start();
   }
 
   @AfterEach
@@ -133,6 +166,7 @@ class PaymentGatewayControllerTest {
     commandBackend.stop(0);
     queryBackend.stop(0);
     ledgerBackend.stop(0);
+    notificationBackend.stop(0);
   }
 
   @Test
@@ -332,5 +366,83 @@ class PaymentGatewayControllerTest {
     ResponseEntity<String> response = restTemplate.exchange(request, String.class);
 
     assertThat(response.getStatusCode().value()).isEqualTo(403);
+  }
+
+  @Test
+  void paymentsSummaryForwardsDaysMerchantIdAndAuthorizationToThePaymentQueryService() {
+    UUID merchantId = UUID.randomUUID();
+    String authHeader = "Bearer " + jwtTokenService.issueAccessToken(merchantId.toString(), "ROLE_MERCHANT", merchantId);
+    RequestEntity<Void> request =
+        RequestEntity.get(URI.create("http://localhost:" + port + "/api/v1/payments/summary?days=7"))
+            .header("Authorization", authHeader)
+            .build();
+
+    ResponseEntity<String> response = restTemplate.exchange(request, String.class);
+
+    assertThat(response.getStatusCode().value()).isEqualTo(200);
+    assertThat(response.getBody()).contains("netVolumeMinor");
+    assertThat(lastQueryPath).isEqualTo("/payments/summary");
+    assertThat(lastQueryQuery).contains("days=7");
+    assertThat(lastQueryMerchantIdHeader).isEqualTo(merchantId.toString());
+    assertThat(lastQueryAuthorizationHeader).isEqualTo(authHeader);
+  }
+
+  @Test
+  void paymentTimelineProxiesToThePaymentQueryServiceEventsRoute() {
+    RequestEntity<Void> request =
+        RequestEntity.get(URI.create("http://localhost:" + port + "/api/v1/payments/abc-123/events"))
+            .header("Authorization", merchantAuthHeader())
+            .build();
+
+    ResponseEntity<String> response = restTemplate.exchange(request, String.class);
+
+    assertThat(response.getStatusCode().value()).isEqualTo(200);
+    assertThat(lastQueryPath).isEqualTo("/payments/abc-123/events");
+  }
+
+  @Test
+  void operatorLedgerEntriesForwardsSincePageAndSizeToTheLedgerService() {
+    String operatorToken = "Bearer " + jwtTokenService.issueAccessToken("operator-1", "ROLE_OPERATOR", null);
+    RequestEntity<Void> request =
+        RequestEntity.get(
+                URI.create(
+                    "http://localhost:" + port + "/operator/ledger/entries?since=2026-01-01T00:00:00Z&page=1&size=5"))
+            .header("Authorization", operatorToken)
+            .build();
+
+    ResponseEntity<String> response = restTemplate.exchange(request, String.class);
+
+    assertThat(response.getStatusCode().value()).isEqualTo(200);
+    assertThat(lastLedgerPath).isEqualTo("/operator/ledger/entries");
+    assertThat(lastLedgerQuery).contains("since=2026-01-01T00:00:00Z").contains("page=1").contains("size=5");
+  }
+
+  @Test
+  void operatorLedgerEntriesIsForbiddenForAMerchantToken() {
+    RequestEntity<Void> request =
+        RequestEntity.get(URI.create("http://localhost:" + port + "/operator/ledger/entries"))
+            .header("Authorization", merchantAuthHeader())
+            .build();
+
+    ResponseEntity<String> response = restTemplate.exchange(request, String.class);
+
+    assertThat(response.getStatusCode().value()).isEqualTo(403);
+  }
+
+  @Test
+  void webhookDeliveriesForwardsMerchantIdPageAndSizeToTheNotificationService() {
+    UUID merchantId = UUID.randomUUID();
+    String authHeader = "Bearer " + jwtTokenService.issueAccessToken(merchantId.toString(), "ROLE_MERCHANT", merchantId);
+    RequestEntity<Void> request =
+        RequestEntity.get(URI.create("http://localhost:" + port + "/webhooks/deliveries?page=1&size=5"))
+            .header("Authorization", authHeader)
+            .build();
+
+    ResponseEntity<String> response = restTemplate.exchange(request, String.class);
+
+    assertThat(response.getStatusCode().value()).isEqualTo(200);
+    assertThat(lastNotificationPath).isEqualTo("/webhooks/deliveries");
+    assertThat(lastNotificationQuery).contains("page=1").contains("size=5");
+    assertThat(lastNotificationMerchantIdHeader).isEqualTo(merchantId.toString());
   }
 }

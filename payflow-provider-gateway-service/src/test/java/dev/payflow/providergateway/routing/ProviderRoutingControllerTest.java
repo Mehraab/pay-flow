@@ -30,20 +30,25 @@ class ProviderRoutingControllerTest {
     when(routingService.listProviders())
         .thenReturn(
             List.of(
-                new ProviderConfig("mock-primary", "Mock Primary Processor", 1, true),
-                new ProviderConfig("mock-secondary", "Mock Backup Processor", 2, true)));
+                new ProviderConfig("mock-primary", "Mock Primary Processor", 1, true, "HEALTHY", 99.7, 120),
+                new ProviderConfig("mock-secondary", "Mock Backup Processor", 2, true, "HEALTHY", 99.2, 155)));
 
     mockMvc
         .perform(get("/operator/providers"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.length()").value(2))
-        .andExpect(jsonPath("$[0].id").value("mock-primary"));
+        .andExpect(jsonPath("$[0].id").value("mock-primary"))
+        .andExpect(jsonPath("$[0].healthStatus").value("HEALTHY"))
+        .andExpect(jsonPath("$[0].successRatePct").value(99.7))
+        .andExpect(jsonPath("$[0].avgLatencyMs").value(120))
+        .andExpect(jsonPath("$[1].successRatePct").value(99.2))
+        .andExpect(jsonPath("$[1].avgLatencyMs").value(155));
   }
 
   @Test
   void updateRoutingReturnsTheUpdatedProvider() throws Exception {
     when(routingService.updateRouting(eq("mock-primary"), any()))
-        .thenReturn(new ProviderConfig("mock-primary", "Mock Primary Processor", 5, false));
+        .thenReturn(new ProviderConfig("mock-primary", "Mock Primary Processor", 5, false, "DEGRADED", 90.0, 300));
 
     mockMvc
         .perform(
@@ -52,7 +57,8 @@ class ProviderRoutingControllerTest {
                 .content(objectMapper.writeValueAsString(new UpdateRoutingRequest(5, false))))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.priority").value(5))
-        .andExpect(jsonPath("$.active").value(false));
+        .andExpect(jsonPath("$.active").value(false))
+        .andExpect(jsonPath("$.healthStatus").value("DEGRADED"));
   }
 
   @Test

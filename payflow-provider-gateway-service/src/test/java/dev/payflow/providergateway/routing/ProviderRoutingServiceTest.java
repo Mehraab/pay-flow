@@ -40,6 +40,32 @@ class ProviderRoutingServiceTest {
   }
 
   @Test
+  void listProvidersReturnsRealisticHealthMetricsSeededByTier() {
+    ProviderRoutingService service = new ProviderRoutingService();
+
+    List<ProviderConfig> providers = service.listProviders();
+
+    assertThat(providers.get(0).healthStatus()).isEqualTo("HEALTHY");
+    assertThat(providers.get(0).successRatePct()).isEqualTo(99.7);
+    assertThat(providers.get(0).avgLatencyMs()).isEqualTo(120);
+    assertThat(providers.get(1).successRatePct()).isEqualTo(99.2);
+    assertThat(providers.get(1).avgLatencyMs()).isEqualTo(155);
+  }
+
+  @Test
+  void updateRoutingPreservesHealthMetricsRatherThanResettingThem() {
+    ProviderRoutingService service = new ProviderRoutingService();
+
+    ProviderConfig updated = service.updateRouting("mock-primary", new UpdateRoutingRequest(5, false));
+
+    // active flipped to false — a naive implementation would reset these to the 4-arg
+    // compatibility constructor's generic defaults instead of preserving the seeded values.
+    assertThat(updated.healthStatus()).isEqualTo("HEALTHY");
+    assertThat(updated.successRatePct()).isEqualTo(99.7);
+    assertThat(updated.avgLatencyMs()).isEqualTo(120);
+  }
+
+  @Test
   void updateRoutingThrowsForAnUnknownProviderId() {
     ProviderRoutingService service = new ProviderRoutingService();
 

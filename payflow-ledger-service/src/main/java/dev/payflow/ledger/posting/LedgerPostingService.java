@@ -195,6 +195,15 @@ public class LedgerPostingService {
     return entryRepository.sumTotalCredits();
   }
 
+  /** BE-06: platform-wide ledger feed, newest first — see {@code GET /operator/ledger/entries}. */
+  public List<LedgerEntry> findEntriesPaged(Instant since, int page, int size) {
+    return entryRepository.findEntries(since, page * size, size);
+  }
+
+  public long countEntriesSince(Instant since) {
+    return entryRepository.countEntries(since);
+  }
+
   private UUID resolveMerchantId(List<LedgerEntry> entries) {
     for (LedgerEntry entry : entries) {
       LedgerAccount creditAccount = accountService.findById(entry.creditAccountId()).orElseThrow();

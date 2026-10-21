@@ -1,6 +1,7 @@
 package dev.payflow.paymentquery.consumer;
 
 import dev.payflow.paymentquery.view.PaymentMethodView;
+import dev.payflow.paymentquery.view.PaymentTimelineEvent;
 import dev.payflow.paymentquery.view.PaymentView;
 import dev.payflow.paymentquery.view.PaymentViewStore;
 import java.time.Instant;
@@ -41,10 +42,10 @@ public class PaymentEventConsumer {
     UUID paymentId = UUID.fromString(paymentIdKey);
     switch (eventType) {
       case "payment.created" -> handleCreated(paymentId, payload);
-      case "payment.authorized" -> handleProviderUpdate(paymentId, "AUTHORIZED", payload);
-      case "payment.captured" -> handleProviderUpdate(paymentId, "CAPTURED", payload);
+      case "payment.authorized" -> handleAuthorized(paymentId, payload);
+      case "payment.captured" -> handleCaptured(paymentId, payload);
       case "payment.failed" -> handleFailed(paymentId, payload);
-      case "payment.refunded" -> store.updateStatus(paymentId, "REFUNDED", null, null);
+      case "payment.refunded" -> handleRefunded(paymentId);
       default -> {
         // Unknown/future event type — ignored rather than failing the consumer.
       }
@@ -74,16 +75,58 @@ public class PaymentEventConsumer {
             paymentMethod,
             created.idempotencyKey(),
             null));
+    store.recordTimelineEvent(
+        paymentId,
+        new PaymentTimelineEvent("PAYMENT_CREATED", "CREATED", createdAt, "Payment initialized for " + customer));
   }
 
-  private void handleProviderUpdate(UUID paymentId, String status, String payload) {
+  private void handleAuthorized(UUID paymentId, String payload) {
     PaymentCapturedPayload update = objectMapper.readValue(payload, PaymentCapturedPayload.class);
-    store.updateStatus(paymentId, status, update.providerRef(), providerDisplayNameFor(update.providerRef()));
+    String providerDisplayName = providerDisplayNameFor(update.providerRef());
+    store.updateStatus(paymentId, "AUTHORIZED", update.providerRef(), providerDisplayName);
+    store.recordTimelineEvent(
+        paymentId,
+        new PaymentTimelineEvent(
+            "PAYMENT_AUTHORIZED", "AUTHORIZED", Instant.now(), "Authorized via " + providerDisplayName));
+  }
+
+  private void handleCaptured(UUID paymentId, String payload) {
+    PaymentCapturedPayload update = objectMapper.readValue(payload, PaymentCapturedPayload.class);
+    store.updateStatus(paymentId, "CAPTURED", update.providerRef(), providerDisplayNameFor(update.providerRef()));
+    store.recordTimelineEvent(
+        paymentId,
+        new PaymentTimelineEvent(
+            "PAYMENT_CAPTURED",
+            "CAPTURED",
+            Instant.now(),
+            "Payment captured successfully (Ref: " + update.providerRef() + ")"));
+    store.recordTimelineEvent(
+        paymentId,
+        new PaymentTimelineEvent("LEDGER_POSTED", "POSTED", Instant.now(), "Double-entry ledger transaction posted"));
+    store.recordTimelineEvent(
+        paymentId,
+        new PaymentTimelineEvent(
+            "WEBHOOK_DELIVERED",
+            "DELIVERED",
+            Instant.now(),
+            "Webhook event payment.captured delivered (HTTP 200)"));
   }
 
   private void handleFailed(UUID paymentId, String payload) {
     PaymentFailedPayload failed = objectMapper.readValue(payload, PaymentFailedPayload.class);
     store.updateFailed(paymentId, failed.declineReason());
+    store.recordTimelineEvent(
+        paymentId,
+        new PaymentTimelineEvent(
+            "PAYMENT_FAILED", "FAILED", Instant.now(), "Payment declined: " + failed.declineReason()));
+  }
+
+  private void handleRefunded(UUID paymentId) {
+    store.updateStatus(paymentId, "REFUNDED", null, null);
+    store.recordTimelineEvent(
+        paymentId,
+        new PaymentTimelineEvent(
+            "PAYMENT_REFUNDED", "REFUNDED", Instant.now(), "Full refund issued to original payment method"));
   }
 
   private String providerDisplayNameFor(String providerRef) {

@@ -5,6 +5,7 @@ import dev.payflow.common.domain.Money;
 import dev.payflow.ledger.account.LedgerAccountService;
 import dev.payflow.ledger.posting.LedgerEntry;
 import dev.payflow.ledger.posting.LedgerPostingService;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
@@ -77,5 +78,17 @@ public class LedgerController {
     long totalDebitsMinor = postingService.sumTotalDebits();
     long totalCreditsMinor = postingService.sumTotalCredits();
     return new LedgerIntegrityResponse(totalDebitsMinor, totalCreditsMinor, totalDebitsMinor == totalCreditsMinor);
+  }
+
+  @GetMapping("/operator/ledger/entries")
+  public PageResponse<LedgerEntryResponse> listLedgerEntries(
+      @RequestParam(value = "since", required = false) Instant since,
+      @RequestParam(value = "page", defaultValue = "0") int page,
+      @RequestParam(value = "size", defaultValue = "20") int size) {
+    List<LedgerEntryResponse> content =
+        postingService.findEntriesPaged(since, page, size).stream().map(this::toResponse).toList();
+    long totalElements = postingService.countEntriesSince(since);
+    int totalPages = size > 0 ? (int) Math.ceil((double) totalElements / size) : 0;
+    return new PageResponse<>(content, page, size, totalElements, totalPages);
   }
 }

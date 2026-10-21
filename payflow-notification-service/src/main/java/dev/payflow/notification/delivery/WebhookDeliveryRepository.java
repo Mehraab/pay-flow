@@ -85,6 +85,34 @@ public class WebhookDeliveryRepository {
         this::mapRow);
   }
 
+  /** BE-08: the merchant-facing delivery log — every delivery (success and failure), not just the DLQ. */
+  public List<WebhookDelivery> findByMerchantId(UUID merchantId, int offset, int limit) {
+    return jdbc.query(
+        """
+        SELECT d.* FROM webhook_deliveries d
+        JOIN webhook_endpoints e ON d.endpoint_id = e.id
+        WHERE e.merchant_id = :merchantId
+        ORDER BY d.last_attempt_at DESC NULLS LAST
+        LIMIT :limit OFFSET :offset
+        """,
+        new MapSqlParameterSource()
+            .addValue("merchantId", merchantId)
+            .addValue("limit", limit)
+            .addValue("offset", offset),
+        this::mapRow);
+  }
+
+  public long countByMerchantId(UUID merchantId) {
+    return jdbc.queryForObject(
+        """
+        SELECT COUNT(*) FROM webhook_deliveries d
+        JOIN webhook_endpoints e ON d.endpoint_id = e.id
+        WHERE e.merchant_id = :merchantId
+        """,
+        new MapSqlParameterSource().addValue("merchantId", merchantId),
+        Long.class);
+  }
+
   public Optional<WebhookDelivery> findById(UUID deliveryId) {
     List<WebhookDelivery> rows =
         jdbc.query(

@@ -10,6 +10,7 @@ import dev.payflow.ledger.account.LedgerAccount;
 import dev.payflow.ledger.account.LedgerAccountService;
 import dev.payflow.ledger.payout.Payout;
 import dev.payflow.ledger.payout.PayoutStatus;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -291,5 +292,45 @@ class LedgerPostingServiceTest extends AbstractPostgresIntegrationTest {
     postingService.postPaymentCapture(UUID.randomUUID(), merchantId, amount);
 
     assertThat(postingService.sumTotalDebits()).isEqualTo(postingService.sumTotalCredits());
+  }
+
+  /**
+   * {@code ledger_entries} is a global, never-reset table shared across every test in this class
+   * (and across the JVM, per the singleton-container pattern) — these BE-06 tests scope with
+   * {@code since = Instant.now()} captured at the start, rather than asserting an absolute count,
+   * so they stay order-independent regardless of what earlier tests already posted.
+   */
+  @Test
+  void countEntriesSinceCountsOnlyEntriesPostedAfterTheGivenInstant() {
+    Instant since = Instant.now();
+    UUID merchantId = UUID.randomUUID();
+
+    postingService.postPaymentCapture(UUID.randomUUID(), merchantId, Money.of(21_400, Currency.USD));
+
+    assertThat(postingService.countEntriesSince(since)).isEqualTo(2); // fee-split capture = 2 legs
+  }
+
+  @Test
+  void countEntriesSinceWithNoLowerBoundCountsEveryEntryEverPosted() {
+    long beforeCount = postingService.countEntriesSince(null);
+    UUID merchantId = UUID.randomUUID();
+    postingService.postPaymentCapture(UUID.randomUUID(), merchantId, Money.of(21_400, Currency.USD));
+
+    assertThat(postingService.countEntriesSince(null)).isEqualTo(beforeCount + 2);
+  }
+
+  @Test
+  void findEntriesPagedOrdersNewestFirstAndRespectsPageSize() {
+    Instant since = Instant.now();
+    UUID merchantId = UUID.randomUUID();
+    postingService.postPaymentCapture(UUID.randomUUID(), merchantId, Money.of(21_400, Currency.USD));
+    postingService.postPaymentCapture(UUID.randomUUID(), merchantId, Money.of(10_000, Currency.USD));
+
+    List<LedgerEntry> onePerPage = postingService.findEntriesPaged(since, 0, 1);
+    List<LedgerEntry> allFour = postingService.findEntriesPaged(since, 0, 100);
+
+    assertThat(onePerPage).hasSize(1);
+    assertThat(allFour).hasSize(4);
+    assertThat(allFour).isSortedAccordingTo((a, b) -> b.postedAt().compareTo(a.postedAt()));
   }
 }
