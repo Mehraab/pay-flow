@@ -1,7 +1,9 @@
 package dev.payflow.paymentquery.consumer;
 
+import dev.payflow.paymentquery.view.PaymentMethodView;
 import dev.payflow.paymentquery.view.PaymentView;
 import dev.payflow.paymentquery.view.PaymentViewStore;
+import java.time.Instant;
 import java.util.UUID;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.KafkaHeaders;
@@ -19,6 +21,10 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class PaymentEventConsumer {
 
+  private static final String MOCK_PROVIDER_PREFIX = "mock-";
+  private static final String MOCK_PROVIDER_DISPLAY_NAME = "Mock Simulator";
+  private static final String STANDARD_PROVIDER_DISPLAY_NAME = "Standard Provider";
+
   private final PaymentViewStore store;
   private final ObjectMapper objectMapper;
 
@@ -35,9 +41,10 @@ public class PaymentEventConsumer {
     UUID paymentId = UUID.fromString(paymentIdKey);
     switch (eventType) {
       case "payment.created" -> handleCreated(paymentId, payload);
-      case "payment.captured" -> handleCaptured(paymentId, payload);
+      case "payment.authorized" -> handleProviderUpdate(paymentId, "AUTHORIZED", payload);
+      case "payment.captured" -> handleProviderUpdate(paymentId, "CAPTURED", payload);
       case "payment.failed" -> handleFailed(paymentId, payload);
-      case "payment.refunded" -> store.updateStatus(paymentId, "REFUNDED", null);
+      case "payment.refunded" -> store.updateStatus(paymentId, "REFUNDED", null, null);
       default -> {
         // Unknown/future event type — ignored rather than failing the consumer.
       }
@@ -46,6 +53,13 @@ public class PaymentEventConsumer {
 
   private void handleCreated(UUID paymentId, String payload) {
     PaymentCreatedPayload created = objectMapper.readValue(payload, PaymentCreatedPayload.class);
+    Instant createdAt =
+        created.metadata() != null && created.metadata().occurredOn() != null
+            ? created.metadata().occurredOn()
+            : Instant.now();
+    String customer = created.customer() != null ? created.customer() : "Customer";
+    PaymentMethodView paymentMethod =
+        created.paymentMethod() != null ? created.paymentMethod() : new PaymentMethodView("Visa", "4242");
     store.save(
         new PaymentView(
             paymentId,
@@ -54,16 +68,28 @@ public class PaymentEventConsumer {
             created.amount().currency().name(),
             "CREATED",
             null,
+            null,
+            createdAt,
+            customer,
+            paymentMethod,
+            created.idempotencyKey(),
             null));
   }
 
-  private void handleCaptured(UUID paymentId, String payload) {
-    PaymentCapturedPayload captured = objectMapper.readValue(payload, PaymentCapturedPayload.class);
-    store.updateStatus(paymentId, "CAPTURED", captured.providerRef());
+  private void handleProviderUpdate(UUID paymentId, String status, String payload) {
+    PaymentCapturedPayload update = objectMapper.readValue(payload, PaymentCapturedPayload.class);
+    store.updateStatus(paymentId, status, update.providerRef(), providerDisplayNameFor(update.providerRef()));
   }
 
   private void handleFailed(UUID paymentId, String payload) {
     PaymentFailedPayload failed = objectMapper.readValue(payload, PaymentFailedPayload.class);
     store.updateFailed(paymentId, failed.declineReason());
+  }
+
+  private String providerDisplayNameFor(String providerRef) {
+    if (providerRef == null) {
+      return null;
+    }
+    return providerRef.startsWith(MOCK_PROVIDER_PREFIX) ? MOCK_PROVIDER_DISPLAY_NAME : STANDARD_PROVIDER_DISPLAY_NAME;
   }
 }

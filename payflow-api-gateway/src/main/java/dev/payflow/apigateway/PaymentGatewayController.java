@@ -2,6 +2,8 @@ package dev.payflow.apigateway;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
+import java.net.URI;
+import java.util.Optional;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpRequest;
@@ -14,10 +16,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClient.RequestHeadersSpec;
 import org.springframework.web.client.RestClient.RequestHeadersSpec.ConvertibleClientHttpResponse;
+import org.springframework.web.util.UriComponentsBuilder;
 
 /**
  * Pass-through routing to the downstream services (ARCHITECTURE_AND_PLAN.md service topology) —
@@ -79,9 +83,70 @@ public class PaymentGatewayController {
     return restClient.post().uri(paymentCommandUrl + "/payments/{id}/refund", id).exchange(this::relay);
   }
 
+  @GetMapping("/api/v1/payments")
+  public ResponseEntity<byte[]> listPayments(
+      @RequestHeader(value = "X-Merchant-Id", required = false) String merchantId,
+      @RequestHeader(value = "Authorization", required = false) String authorization,
+      @RequestParam(value = "status", required = false) String status,
+      @RequestParam(value = "q", required = false) String q,
+      @RequestParam(value = "page", required = false) Integer page,
+      @RequestParam(value = "size", required = false) Integer size) {
+    URI uri =
+        UriComponentsBuilder.fromUriString(paymentQueryUrl + "/payments")
+            .queryParamIfPresent("status", Optional.ofNullable(status))
+            .queryParamIfPresent("q", Optional.ofNullable(q))
+            .queryParamIfPresent("page", Optional.ofNullable(page))
+            .queryParamIfPresent("size", Optional.ofNullable(size))
+            .build()
+            .toUri();
+    RequestHeadersSpec<?> spec = restClient.get().uri(uri);
+    if (merchantId != null) {
+      spec = spec.header("X-Merchant-Id", merchantId);
+    }
+    if (authorization != null) {
+      spec = spec.header("Authorization", authorization);
+    }
+    return spec.exchange(this::relay);
+  }
+
   @GetMapping("/operator/ledger/integrity")
   public ResponseEntity<byte[]> ledgerIntegrity() {
     return restClient.get().uri(ledgerUrl + "/operator/ledger/integrity").exchange(this::relay);
+  }
+
+  @GetMapping("/accounts/{accountName}/balance")
+  public ResponseEntity<byte[]> platformAccountBalance(@PathVariable String accountName) {
+    return restClient.get().uri(ledgerUrl + "/accounts/{accountName}/balance", accountName).exchange(this::relay);
+  }
+
+  @GetMapping("/accounts/{merchantId}/{accountName}/balance")
+  public ResponseEntity<byte[]> merchantAccountBalance(
+      @PathVariable String merchantId, @PathVariable String accountName) {
+    return restClient
+        .get()
+        .uri(ledgerUrl + "/accounts/{merchantId}/{accountName}/balance", merchantId, accountName)
+        .exchange(this::relay);
+  }
+
+  @GetMapping("/ledger")
+  public ResponseEntity<byte[]> ledgerEntries(@RequestParam("transaction") String transactionRef) {
+    URI uri = UriComponentsBuilder.fromUriString(ledgerUrl + "/ledger").queryParam("transaction", transactionRef).build().toUri();
+    return restClient.get().uri(uri).exchange(this::relay);
+  }
+
+  @PostMapping("/payouts")
+  public ResponseEntity<byte[]> createPayout(@RequestBody byte[] body) {
+    return restClient.post().uri(ledgerUrl + "/payouts").contentType(MediaType.APPLICATION_JSON).body(body).exchange(this::relay);
+  }
+
+  @GetMapping("/payouts/{id}")
+  public ResponseEntity<byte[]> getPayout(@PathVariable String id) {
+    return restClient.get().uri(ledgerUrl + "/payouts/{id}", id).exchange(this::relay);
+  }
+
+  @PostMapping("/operator/payouts/sweep")
+  public ResponseEntity<byte[]> sweepPayouts() {
+    return restClient.post().uri(ledgerUrl + "/payouts/sweep").exchange(this::relay);
   }
 
   @RequestMapping(value = "/operator/providers/**", method = {RequestMethod.GET, RequestMethod.PATCH})

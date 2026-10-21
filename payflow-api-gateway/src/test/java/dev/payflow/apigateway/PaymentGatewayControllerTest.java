@@ -2,6 +2,7 @@ package dev.payflow.apigateway;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import dev.payflow.apigateway.security.JwtTokenService;
 import java.io.IOException;
@@ -40,10 +41,19 @@ class PaymentGatewayControllerTest {
 
   private HttpServer commandBackend;
   private HttpServer queryBackend;
+  private HttpServer ledgerBackend;
   private volatile String lastCommandIdempotencyKey;
   private volatile String lastCommandBody;
   private volatile String lastCommandPath;
   private volatile String lastCommandMethod;
+  private volatile String lastQueryPath;
+  private volatile String lastQueryQuery;
+  private volatile String lastQueryMerchantIdHeader;
+  private volatile String lastQueryAuthorizationHeader;
+  private volatile String lastLedgerPath;
+  private volatile String lastLedgerQuery;
+  private volatile String lastLedgerMethod;
+  private volatile String lastLedgerBody;
 
   @BeforeEach
   void startBackends() throws IOException {
@@ -78,7 +88,14 @@ class PaymentGatewayControllerTest {
           String path = exchange.getRequestURI().getPath();
           byte[] body;
           int status;
-          if (path.endsWith("/missing")) {
+          if (path.equals("/payments")) {
+            lastQueryPath = path;
+            lastQueryQuery = exchange.getRequestURI().getQuery();
+            lastQueryMerchantIdHeader = exchange.getRequestHeaders().getFirst("X-Merchant-Id");
+            lastQueryAuthorizationHeader = exchange.getRequestHeaders().getFirst("Authorization");
+            status = 200;
+            body = "{\"content\":[],\"page\":0,\"size\":10,\"totalElements\":0,\"totalPages\":0}".getBytes(StandardCharsets.UTF_8);
+          } else if (path.endsWith("/missing")) {
             status = 404;
             body = new byte[0];
           } else {
@@ -91,12 +108,31 @@ class PaymentGatewayControllerTest {
           exchange.close();
         });
     queryBackend.start();
+
+    ledgerBackend = HttpServer.create(new InetSocketAddress("localhost", 8085), 0);
+    HttpHandler ledgerHandler =
+        exchange -> {
+          lastLedgerPath = exchange.getRequestURI().getPath();
+          lastLedgerQuery = exchange.getRequestURI().getQuery();
+          lastLedgerMethod = exchange.getRequestMethod();
+          lastLedgerBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+          byte[] body = "{\"stub\":true}".getBytes(StandardCharsets.UTF_8);
+          exchange.getResponseHeaders().add("Content-Type", "application/json");
+          exchange.sendResponseHeaders(200, body.length);
+          exchange.getResponseBody().write(body);
+          exchange.close();
+        };
+    ledgerBackend.createContext("/accounts", ledgerHandler);
+    ledgerBackend.createContext("/ledger", ledgerHandler);
+    ledgerBackend.createContext("/payouts", ledgerHandler);
+    ledgerBackend.start();
   }
 
   @AfterEach
   void stopBackends() {
     commandBackend.stop(0);
     queryBackend.stop(0);
+    ledgerBackend.stop(0);
   }
 
   @Test
@@ -153,5 +189,148 @@ class PaymentGatewayControllerTest {
     assertThat(response.getStatusCode().value()).isEqualTo(200);
     assertThat(lastCommandMethod).isEqualTo("POST");
     assertThat(lastCommandPath).isEqualTo("/payments/abc-123/refund");
+  }
+
+  @Test
+  void optionsPreflightIsAnsweredWithCorsHeadersAndNeverReachesTheJwtFilter() {
+    RequestEntity<Void> request =
+        RequestEntity.options(URI.create("http://localhost:" + port + "/api/v1/payments"))
+            .header("Origin", "http://localhost:4200")
+            .header("Access-Control-Request-Method", "GET")
+            .header("Access-Control-Request-Headers", "Authorization")
+            .build();
+
+    ResponseEntity<Void> response = restTemplate.exchange(request, Void.class);
+
+    assertThat(response.getStatusCode().value()).isEqualTo(200);
+    assertThat(response.getHeaders().getFirst("Access-Control-Allow-Origin")).isEqualTo("http://localhost:4200");
+    assertThat(response.getHeaders().getFirst("Access-Control-Allow-Credentials")).isEqualTo("true");
+    assertThat(response.getHeaders().getFirst("Access-Control-Allow-Methods")).contains("GET");
+  }
+
+  @Test
+  void listPaymentsForwardsQueryParamsAndHeadersToThePaymentQueryService() {
+    // The JWT filter derives X-Merchant-Id from the token's own merchantId claim and overrides
+    // whatever the client sent (MerchantIdHeaderRequest) — so the merchant id to assert against
+    // is the one baked into the token, not an independently-generated one.
+    UUID merchantId = UUID.randomUUID();
+    String authHeader = "Bearer " + jwtTokenService.issueAccessToken(merchantId.toString(), "ROLE_MERCHANT", merchantId);
+    RequestEntity<Void> request =
+        RequestEntity.get(
+                URI.create("http://localhost:" + port + "/api/v1/payments?status=CAPTURED&q=Elena&page=1&size=5"))
+            .header("Authorization", authHeader)
+            .build();
+
+    ResponseEntity<String> response = restTemplate.exchange(request, String.class);
+
+    assertThat(response.getStatusCode().value()).isEqualTo(200);
+    assertThat(lastQueryPath).isEqualTo("/payments");
+    assertThat(lastQueryQuery)
+        .contains("status=CAPTURED")
+        .contains("q=Elena")
+        .contains("page=1")
+        .contains("size=5");
+    assertThat(lastQueryMerchantIdHeader).isEqualTo(merchantId.toString());
+    assertThat(lastQueryAuthorizationHeader).isEqualTo(authHeader);
+  }
+
+  @Test
+  void platformAccountBalanceProxiesToTheLedgerService() {
+    RequestEntity<Void> request =
+        RequestEntity.get(URI.create("http://localhost:" + port + "/accounts/Platform%20Bank/balance"))
+            .header("Authorization", merchantAuthHeader())
+            .build();
+
+    ResponseEntity<String> response = restTemplate.exchange(request, String.class);
+
+    assertThat(response.getStatusCode().value()).isEqualTo(200);
+    assertThat(lastLedgerPath).isEqualTo("/accounts/Platform Bank/balance");
+  }
+
+  @Test
+  void merchantAccountBalanceProxiesToTheLedgerService() {
+    UUID merchantId = UUID.randomUUID();
+    RequestEntity<Void> request =
+        RequestEntity.get(
+                URI.create("http://localhost:" + port + "/accounts/" + merchantId + "/merchant-payable/balance"))
+            .header("Authorization", merchantAuthHeader())
+            .build();
+
+    ResponseEntity<String> response = restTemplate.exchange(request, String.class);
+
+    assertThat(response.getStatusCode().value()).isEqualTo(200);
+    assertThat(lastLedgerPath).isEqualTo("/accounts/" + merchantId + "/merchant-payable/balance");
+  }
+
+  @Test
+  void ledgerEntriesProxiesTheTransactionQueryParamToTheLedgerService() {
+    RequestEntity<Void> request =
+        RequestEntity.get(URI.create("http://localhost:" + port + "/ledger?transaction=demo-ref-001"))
+            .header("Authorization", merchantAuthHeader())
+            .build();
+
+    ResponseEntity<String> response = restTemplate.exchange(request, String.class);
+
+    assertThat(response.getStatusCode().value()).isEqualTo(200);
+    assertThat(lastLedgerPath).isEqualTo("/ledger");
+    assertThat(lastLedgerQuery).contains("transaction=demo-ref-001");
+  }
+
+  @Test
+  void createPayoutProxiesTheBodyToTheLedgerService() {
+    UUID merchantId = UUID.randomUUID();
+    RequestEntity<String> request =
+        RequestEntity.post(URI.create("http://localhost:" + port + "/payouts"))
+            .header("Content-Type", "application/json")
+            .header("Authorization", merchantAuthHeader())
+            .body("{\"merchantId\":\"" + merchantId + "\"}");
+
+    ResponseEntity<String> response = restTemplate.exchange(request, String.class);
+
+    assertThat(response.getStatusCode().value()).isEqualTo(200);
+    assertThat(lastLedgerMethod).isEqualTo("POST");
+    assertThat(lastLedgerPath).isEqualTo("/payouts");
+    assertThat(lastLedgerBody).isEqualTo("{\"merchantId\":\"" + merchantId + "\"}");
+  }
+
+  @Test
+  void getPayoutProxiesToTheLedgerService() {
+    UUID payoutId = UUID.randomUUID();
+    RequestEntity<Void> request =
+        RequestEntity.get(URI.create("http://localhost:" + port + "/payouts/" + payoutId))
+            .header("Authorization", merchantAuthHeader())
+            .build();
+
+    ResponseEntity<String> response = restTemplate.exchange(request, String.class);
+
+    assertThat(response.getStatusCode().value()).isEqualTo(200);
+    assertThat(lastLedgerPath).isEqualTo("/payouts/" + payoutId);
+  }
+
+  @Test
+  void operatorPayoutsSweepProxiesToTheLedgerServiceSweepRoute() {
+    String operatorToken = "Bearer " + jwtTokenService.issueAccessToken("operator-1", "ROLE_OPERATOR", null);
+    RequestEntity<Void> request =
+        RequestEntity.post(URI.create("http://localhost:" + port + "/operator/payouts/sweep"))
+            .header("Authorization", operatorToken)
+            .build();
+
+    ResponseEntity<String> response = restTemplate.exchange(request, String.class);
+
+    assertThat(response.getStatusCode().value()).isEqualTo(200);
+    assertThat(lastLedgerMethod).isEqualTo("POST");
+    assertThat(lastLedgerPath).isEqualTo("/payouts/sweep");
+  }
+
+  @Test
+  void operatorPayoutsSweepIsForbiddenForAMerchantToken() {
+    RequestEntity<Void> request =
+        RequestEntity.post(URI.create("http://localhost:" + port + "/operator/payouts/sweep"))
+            .header("Authorization", merchantAuthHeader())
+            .build();
+
+    ResponseEntity<String> response = restTemplate.exchange(request, String.class);
+
+    assertThat(response.getStatusCode().value()).isEqualTo(403);
   }
 }

@@ -41,6 +41,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
   @Override
   protected boolean shouldNotFilter(HttpServletRequest request) {
+    if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+      // CORS preflight — the browser never attaches Authorization to it, so this filter must
+      // never 401 it; CorsFilterConfiguration's CorsFilter answers it before this filter runs.
+      return true;
+    }
     String path = request.getRequestURI();
     return path.startsWith("/actuator/") || path.startsWith("/auth/");
   }

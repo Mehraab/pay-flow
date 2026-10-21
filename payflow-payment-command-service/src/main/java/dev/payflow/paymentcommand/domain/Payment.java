@@ -26,10 +26,26 @@ public final class Payment extends AggregateRoot<PaymentId, PaymentDomainEvent> 
   }
 
   public static Payment create(PaymentId id, UUID merchantId, Money amount, String idempotencyKey) {
+    return create(id, merchantId, amount, idempotencyKey, "Customer", new PaymentMethodInfo("Visa", "4242"));
+  }
+
+  public static Payment create(
+      PaymentId id,
+      UUID merchantId,
+      Money amount,
+      String idempotencyKey,
+      String customer,
+      PaymentMethodInfo paymentMethod) {
     Payment payment = new Payment(id, 0);
     payment.raise(
         new PaymentCreated(
-            EventMetadata.next(id, UUID.randomUUID(), null), id, merchantId, amount, idempotencyKey));
+            EventMetadata.next(id, UUID.randomUUID(), null),
+            id,
+            merchantId,
+            amount,
+            idempotencyKey,
+            customer,
+            paymentMethod));
     return payment;
   }
 

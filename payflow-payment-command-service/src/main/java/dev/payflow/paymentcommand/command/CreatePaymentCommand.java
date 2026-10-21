@@ -6,7 +6,12 @@ import dev.payflow.paymentcommand.domain.PaymentId;
 import java.util.UUID;
 
 public record CreatePaymentCommand(
-    UUID merchantId, Money amount, String cardNumber, boolean forceLedgerFailure, String idempotencyKey)
+    UUID merchantId,
+    Money amount,
+    String cardNumber,
+    boolean forceLedgerFailure,
+    String idempotencyKey,
+    String customer)
     implements IdempotentCommand<PaymentId> {
 
   @Override

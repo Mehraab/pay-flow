@@ -39,7 +39,8 @@ class CreatePaymentHandlerTest extends AbstractPostgresIntegrationTest {
     String idempotencyKey = "test-" + UUID.randomUUID();
 
     var paymentId =
-        handler.handle(new CreatePaymentCommand(merchantId, amount, cardNumber, false, idempotencyKey));
+        handler.handle(
+            new CreatePaymentCommand(merchantId, amount, cardNumber, false, idempotencyKey, "Elena Marsh"));
 
     Payment saved = repository.findById(paymentId).orElseThrow();
     assertThat(saved.status()).isEqualTo(PaymentStatus.CREATED);
