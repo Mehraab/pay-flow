@@ -109,4 +109,22 @@ class LedgerControllerTest {
         .andExpect(jsonPath("$.accountName").value("Merchant Payable"))
         .andExpect(jsonPath("$.balanceMinor").value(20_779));
   }
+
+  @Test
+  void platformAccountBalanceReturnsNotFoundWhenAccountDoesNotExist() throws Exception {
+    when(accountService.findPlatformAccount("nonexistent")).thenReturn(Optional.empty());
+    when(accountService.findUniqueMerchantAccountByNameOrSlug("nonexistent")).thenReturn(Optional.empty());
+
+    mockMvc.perform(get("/accounts/{name}/balance", "nonexistent")).andExpect(status().isNotFound());
+  }
+
+  @Test
+  void merchantAccountBalanceReturnsNotFoundWhenAccountDoesNotExist() throws Exception {
+    UUID merchantId = UUID.randomUUID();
+    when(accountService.findMerchantAccount(merchantId, "merchant-payable")).thenReturn(Optional.empty());
+
+    mockMvc
+        .perform(get("/accounts/{merchantId}/{name}/balance", merchantId, "merchant-payable"))
+        .andExpect(status().isNotFound());
+  }
 }

@@ -143,13 +143,32 @@ pass "paymentId = ${PAYMENT_ID}"
 
 # ---------------------------------------------------------------------------
 # Baseline ledger balances — read BEFORE polling for capture, so Step 3 can assert the delta
-# this specific payment produced rather than an absolute value (see header comment).
-# ---------------------------------------------------------------------------
+# this specific payment produced rather than an absolute value (see header comment). On a
+# fresh environment "Merchant Payable" hasn't been seeded yet (it's created lazily on first
+# capture), so a missing account must read as a 0 balance, not abort the script under set -e —
+# plain `curl -sf` exits 22 on a 404 and `jq` has nothing to parse from an empty body. Merchant
+# accounts are queried via the merchant-scoped endpoint to avoid the ambiguous bare-slug lookup.
 fetch_balance() {
-  curl -sf "${LEDGER_URL}/accounts/${1}/balance" | jq -r '.balanceMinor'
+  local account="$1"
+  local merchant="${2:-}"
+  local url
+  if [[ -n "$merchant" ]]; then
+    url="${LEDGER_URL}/accounts/${merchant}/${account}/balance"
+  else
+    url="${LEDGER_URL}/accounts/${account}/balance"
+  fi
+  local res
+  res=$(curl -s "$url" 2>/dev/null || true)
+  local balance
+  balance=$(echo "$res" | jq -r '.balanceMinor // empty' 2>/dev/null || true)
+  if [[ -n "$balance" && "$balance" != "null" ]]; then
+    echo "$balance"
+  else
+    echo "0"
+  fi
 }
 PLATFORM_BANK_BEFORE=$(fetch_balance "platform-bank")
-MERCHANT_PAYABLE_BEFORE=$(fetch_balance "merchant-payable")
+MERCHANT_PAYABLE_BEFORE=$(fetch_balance "merchant-payable" "${MERCHANT_ID}")
 
 # ---------------------------------------------------------------------------
 # Step 2 — poll until captured
@@ -186,7 +205,7 @@ EXPECTED_FEE_MINOR=$(( (AMOUNT_MINOR * 29 + 500) / 1000 ))   # round-half-up of 
 EXPECTED_MERCHANT_SHARE=$(( AMOUNT_MINOR - EXPECTED_FEE_MINOR ))
 
 PLATFORM_BANK_AFTER=$(fetch_balance "platform-bank")
-MERCHANT_PAYABLE_AFTER=$(fetch_balance "merchant-payable")
+MERCHANT_PAYABLE_AFTER=$(fetch_balance "merchant-payable" "${MERCHANT_ID}")
 
 PLATFORM_BANK_DELTA=$(( PLATFORM_BANK_AFTER - PLATFORM_BANK_BEFORE ))
 MERCHANT_PAYABLE_DELTA=$(( MERCHANT_PAYABLE_AFTER - MERCHANT_PAYABLE_BEFORE ))

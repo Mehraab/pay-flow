@@ -2,10 +2,10 @@ package dev.payflow.ledger.web;
 
 import dev.payflow.common.domain.Currency;
 import dev.payflow.common.domain.Money;
-import dev.payflow.ledger.account.LedgerAccount;
 import dev.payflow.ledger.account.LedgerAccountService;
 import dev.payflow.ledger.posting.LedgerPostingService;
 import java.util.UUID;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -31,19 +31,20 @@ public class LedgerController {
   }
 
   @GetMapping("/accounts/{accountName}/balance")
-  public AccountBalanceResponse platformAccountBalance(@PathVariable String accountName) {
-    LedgerAccount account =
-        accountService
-            .findPlatformAccount(accountName)
-            .or(() -> accountService.findUniqueMerchantAccountByNameOrSlug(accountName))
-            .orElseThrow();
-    return new AccountBalanceResponse(account.accountName(), account.balanceMinor());
+  public ResponseEntity<AccountBalanceResponse> platformAccountBalance(@PathVariable String accountName) {
+    return accountService
+        .findPlatformAccount(accountName)
+        .or(() -> accountService.findUniqueMerchantAccountByNameOrSlug(accountName))
+        .map(acc -> ResponseEntity.ok(new AccountBalanceResponse(acc.accountName(), acc.balanceMinor())))
+        .orElseGet(() -> ResponseEntity.notFound().build());
   }
 
   @GetMapping("/accounts/{merchantId}/{accountName}/balance")
-  public AccountBalanceResponse merchantAccountBalance(
+  public ResponseEntity<AccountBalanceResponse> merchantAccountBalance(
       @PathVariable UUID merchantId, @PathVariable String accountName) {
-    LedgerAccount account = accountService.findMerchantAccount(merchantId, accountName).orElseThrow();
-    return new AccountBalanceResponse(account.accountName(), account.balanceMinor());
+    return accountService
+        .findMerchantAccount(merchantId, accountName)
+        .map(acc -> ResponseEntity.ok(new AccountBalanceResponse(acc.accountName(), acc.balanceMinor())))
+        .orElseGet(() -> ResponseEntity.notFound().build());
   }
 }
