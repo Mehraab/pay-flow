@@ -1,7 +1,9 @@
 package dev.payflow.apigateway;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpRequest;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -11,35 +13,41 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClient.RequestHeadersSpec;
 import org.springframework.web.client.RestClient.RequestHeadersSpec.ConvertibleClientHttpResponse;
 
 /**
- * Pass-through routing to the two downstream services (ARCHITECTURE_AND_PLAN.md service
- * topology) — not a general-purpose reverse proxy, just the two routes Milestone 1 needs:
- * {@code POST /api/v1/payments} to the Payment Command Service, {@code GET
- * /api/v1/payments/{id}} to the Payment Query Service. Status code and body are relayed
- * unchanged either way.
+ * Pass-through routing to the downstream services (ARCHITECTURE_AND_PLAN.md service topology) —
+ * not a general-purpose reverse proxy, just the routes the merchant-facing gateway needs: payment
+ * CRUD/refund to the Payment Command/Query Services, plus the operator-only ledger-integrity and
+ * provider-routing routes. Status code and body are relayed unchanged either way.
  */
 @RestController
-@RequestMapping("/api/v1/payments")
 public class PaymentGatewayController {
 
   private final RestClient restClient;
   private final String paymentCommandUrl;
   private final String paymentQueryUrl;
+  private final String ledgerUrl;
+  private final String providerGatewayUrl;
 
   public PaymentGatewayController(
       RestClient restClient,
       @Value("${payflow.gateway.payment-command-url}") String paymentCommandUrl,
-      @Value("${payflow.gateway.payment-query-url}") String paymentQueryUrl) {
+      @Value("${payflow.gateway.payment-query-url}") String paymentQueryUrl,
+      @Value("${payflow.gateway.ledger-url}") String ledgerUrl,
+      @Value("${payflow.gateway.provider-gateway-url}") String providerGatewayUrl) {
     this.restClient = restClient;
     this.paymentCommandUrl = paymentCommandUrl;
     this.paymentQueryUrl = paymentQueryUrl;
+    this.ledgerUrl = ledgerUrl;
+    this.providerGatewayUrl = providerGatewayUrl;
   }
 
-  @PostMapping
+  @PostMapping("/api/v1/payments")
   public ResponseEntity<byte[]> createPayment(
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
       @RequestHeader(value = "X-Force-Ledger-Failure", required = false) String forceLedgerFailure,
@@ -55,14 +63,31 @@ public class PaymentGatewayController {
     return request.body(body).exchange(this::relay);
   }
 
-  @GetMapping("/{id}")
+  @GetMapping("/api/v1/payments/{id}")
   public ResponseEntity<byte[]> getPayment(@PathVariable String id) {
     return restClient.get().uri(paymentQueryUrl + "/payments/{id}", id).exchange(this::relay);
   }
 
-  @PostMapping("/{id}/refund")
+  @PostMapping("/api/v1/payments/{id}/refund")
   public ResponseEntity<byte[]> refundPayment(@PathVariable String id) {
     return restClient.post().uri(paymentCommandUrl + "/payments/{id}/refund", id).exchange(this::relay);
+  }
+
+  @GetMapping("/operator/ledger/integrity")
+  public ResponseEntity<byte[]> ledgerIntegrity() {
+    return restClient.get().uri(ledgerUrl + "/operator/ledger/integrity").exchange(this::relay);
+  }
+
+  @RequestMapping(value = "/operator/providers/**", method = {RequestMethod.GET, RequestMethod.PATCH})
+  public ResponseEntity<byte[]> proxyProviderRouting(
+      HttpServletRequest request, @RequestBody(required = false) byte[] body) {
+    RestClient.RequestBodySpec requestSpec =
+        restClient.method(HttpMethod.valueOf(request.getMethod())).uri(providerGatewayUrl + request.getRequestURI());
+    RequestHeadersSpec<?> spec =
+        (body != null && body.length > 0)
+            ? requestSpec.contentType(MediaType.APPLICATION_JSON).body(body)
+            : requestSpec;
+    return spec.exchange(this::relay);
   }
 
   private ResponseEntity<byte[]> relay(HttpRequest request, ConvertibleClientHttpResponse response)

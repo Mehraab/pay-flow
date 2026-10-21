@@ -3,13 +3,16 @@ package dev.payflow.apigateway;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.sun.net.httpserver.HttpServer;
+import dev.payflow.apigateway.security.JwtTokenService;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -20,13 +23,20 @@ import org.springframework.http.ResponseEntity;
  * Verifies the gateway actually forwards to the two downstream services, using plain JDK {@link
  * HttpServer} stand-ins bound to the real payment-command (8081) and payment-query (8082) ports
  * — the same ports {@code application.yml} points at — rather than mocking the forwarding layer.
+ * Requests carry a real access token minted directly from {@link JwtTokenService} (not via {@code
+ * /auth/token}, which would need a live Redis) so they clear the gateway's JWT filter.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class PaymentGatewayControllerTest {
 
   @LocalServerPort private int port;
+  @Autowired private JwtTokenService jwtTokenService;
 
   private final TestRestTemplate restTemplate = new TestRestTemplate();
+
+  private String merchantAuthHeader() {
+    return "Bearer " + jwtTokenService.issueAccessToken(UUID.randomUUID().toString(), "ROLE_MERCHANT", UUID.randomUUID());
+  }
 
   private HttpServer commandBackend;
   private HttpServer queryBackend;
@@ -95,6 +105,7 @@ class PaymentGatewayControllerTest {
         RequestEntity.post(URI.create("http://localhost:" + port + "/api/v1/payments"))
             .header("Content-Type", "application/json")
             .header("Idempotency-Key", "demo-001")
+            .header("Authorization", merchantAuthHeader())
             .body("{\"merchantId\":\"m-1\"}");
 
     ResponseEntity<String> response = restTemplate.exchange(request, String.class);
@@ -107,9 +118,12 @@ class PaymentGatewayControllerTest {
 
   @Test
   void getPaymentsForwardsToThePaymentQueryServiceAndRelaysTheResponse() {
-    ResponseEntity<String> response =
-        restTemplate.getForEntity(
-            "http://localhost:" + port + "/api/v1/payments/{id}", String.class, "abc-123");
+    RequestEntity<Void> request =
+        RequestEntity.get(URI.create("http://localhost:" + port + "/api/v1/payments/abc-123"))
+            .header("Authorization", merchantAuthHeader())
+            .build();
+
+    ResponseEntity<String> response = restTemplate.exchange(request, String.class);
 
     assertThat(response.getStatusCode().value()).isEqualTo(200);
     assertThat(response.getBody()).contains("CAPTURED");
@@ -117,18 +131,24 @@ class PaymentGatewayControllerTest {
 
   @Test
   void getPaymentsRelaysANotFoundStatusUnchanged() {
-    ResponseEntity<String> response =
-        restTemplate.getForEntity(
-            "http://localhost:" + port + "/api/v1/payments/{id}", String.class, "missing");
+    RequestEntity<Void> request =
+        RequestEntity.get(URI.create("http://localhost:" + port + "/api/v1/payments/missing"))
+            .header("Authorization", merchantAuthHeader())
+            .build();
+
+    ResponseEntity<String> response = restTemplate.exchange(request, String.class);
 
     assertThat(response.getStatusCode().value()).isEqualTo(404);
   }
 
   @Test
   void postRefundForwardsToThePaymentCommandServiceRefundRouteAndRelaysTheResponse() {
-    ResponseEntity<String> response =
-        restTemplate.postForEntity(
-            "http://localhost:" + port + "/api/v1/payments/{id}/refund", null, String.class, "abc-123");
+    RequestEntity<Void> request =
+        RequestEntity.post(URI.create("http://localhost:" + port + "/api/v1/payments/abc-123/refund"))
+            .header("Authorization", merchantAuthHeader())
+            .build();
+
+    ResponseEntity<String> response = restTemplate.exchange(request, String.class);
 
     assertThat(response.getStatusCode().value()).isEqualTo(200);
     assertThat(lastCommandMethod).isEqualTo("POST");
