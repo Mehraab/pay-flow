@@ -32,6 +32,8 @@ class PaymentGatewayControllerTest {
   private HttpServer queryBackend;
   private volatile String lastCommandIdempotencyKey;
   private volatile String lastCommandBody;
+  private volatile String lastCommandPath;
+  private volatile String lastCommandMethod;
 
   @BeforeEach
   void startBackends() throws IOException {
@@ -39,6 +41,16 @@ class PaymentGatewayControllerTest {
     commandBackend.createContext(
         "/payments",
         exchange -> {
+          lastCommandPath = exchange.getRequestURI().getPath();
+          lastCommandMethod = exchange.getRequestMethod();
+          if (lastCommandPath.endsWith("/refund")) {
+            byte[] body = "{\"status\":\"ok\"}".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+            return;
+          }
           lastCommandIdempotencyKey = exchange.getRequestHeaders().getFirst("Idempotency-Key");
           lastCommandBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
           byte[] body = "{\"paymentId\":\"stub-id\"}".getBytes(StandardCharsets.UTF_8);
@@ -110,5 +122,16 @@ class PaymentGatewayControllerTest {
             "http://localhost:" + port + "/api/v1/payments/{id}", String.class, "missing");
 
     assertThat(response.getStatusCode().value()).isEqualTo(404);
+  }
+
+  @Test
+  void postRefundForwardsToThePaymentCommandServiceRefundRouteAndRelaysTheResponse() {
+    ResponseEntity<String> response =
+        restTemplate.postForEntity(
+            "http://localhost:" + port + "/api/v1/payments/{id}/refund", null, String.class, "abc-123");
+
+    assertThat(response.getStatusCode().value()).isEqualTo(200);
+    assertThat(lastCommandMethod).isEqualTo("POST");
+    assertThat(lastCommandPath).isEqualTo("/payments/abc-123/refund");
   }
 }

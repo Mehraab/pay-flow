@@ -6,7 +6,12 @@ import dev.payflow.ledger.account.AccountType;
 import dev.payflow.ledger.account.LedgerAccount;
 import dev.payflow.ledger.account.LedgerAccountService;
 import dev.payflow.ledger.account.NormalBalance;
+import dev.payflow.ledger.payout.Payout;
+import dev.payflow.ledger.payout.PayoutRepository;
+import dev.payflow.ledger.payout.PayoutStatus;
+import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,11 +30,15 @@ public class LedgerPostingService {
 
   private final LedgerAccountService accountService;
   private final LedgerEntryRepository entryRepository;
+  private final PayoutRepository payoutRepository;
 
   public LedgerPostingService(
-      LedgerAccountService accountService, LedgerEntryRepository entryRepository) {
+      LedgerAccountService accountService,
+      LedgerEntryRepository entryRepository,
+      PayoutRepository payoutRepository) {
     this.accountService = accountService;
     this.entryRepository = entryRepository;
+    this.payoutRepository = payoutRepository;
   }
 
   @Transactional
@@ -103,6 +112,41 @@ public class LedgerPostingService {
   /** Entries are grouped under one {@code transaction_ref}; used by {@code GET /ledger}. */
   public List<LedgerEntry> findEntriesForTransaction(String transactionRef) {
     return entryRepository.findByTransactionRef(transactionRef);
+  }
+
+  /**
+   * Payout Phase A (ARCHITECTURE_AND_PLAN.md §2.3.3, BR-15): sweeps a merchant's ENTIRE available
+   * {@code Merchant Payable} balance into {@code Payout In-Transit} — there is no partial-payout
+   * concept in v1, so the payout amount is whatever that balance happens to be right now.
+   */
+  @Transactional
+  public Payout createPayout(UUID merchantId) {
+    LedgerAccount merchantPayable =
+        accountService
+            .findMerchantAccount(merchantId, LedgerAccountService.MERCHANT_PAYABLE)
+            .orElseThrow(
+                () ->
+                    new IllegalStateException(
+                        "No " + LedgerAccountService.MERCHANT_PAYABLE + " account for merchant " + merchantId));
+
+    if (merchantPayable.balanceMinor() <= 0) {
+      throw new IllegalStateException("No available balance for payout");
+    }
+    long amountMinor = merchantPayable.balanceMinor();
+
+    LedgerAccount payoutInTransit = accountService.ensurePayoutInTransitAccount(merchantId);
+
+    UUID payoutId = UUID.randomUUID();
+    postLeg("payout-" + payoutId, merchantPayable, payoutInTransit, amountMinor);
+
+    Payout payout =
+        new Payout(payoutId, merchantId, amountMinor, "USD", PayoutStatus.IN_TRANSIT, Instant.now(), null);
+    payoutRepository.insert(payout);
+    return payout;
+  }
+
+  public Optional<Payout> findPayoutById(UUID id) {
+    return payoutRepository.findById(id);
   }
 
   private UUID resolveMerchantId(List<LedgerEntry> entries) {

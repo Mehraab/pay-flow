@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 public class LedgerAccountService {
 
   public static final String MERCHANT_PAYABLE = "Merchant Payable";
+  public static final String PAYOUT_IN_TRANSIT = "Payout In-Transit";
 
   private final LedgerAccountRepository repository;
 
@@ -24,22 +25,30 @@ public class LedgerAccountService {
   }
 
   public LedgerAccount ensureMerchantPayableAccount(UUID merchantId) {
+    return ensureMerchantAccount(merchantId, MERCHANT_PAYABLE, AccountType.LIABILITY, NormalBalance.CREDIT);
+  }
+
+  public LedgerAccount ensurePayoutInTransitAccount(UUID merchantId) {
+    return ensureMerchantAccount(merchantId, PAYOUT_IN_TRANSIT, AccountType.LIABILITY, NormalBalance.CREDIT);
+  }
+
+  private LedgerAccount ensureMerchantAccount(
+      UUID merchantId, String accountName, AccountType type, NormalBalance normalBalance) {
     return repository
-        .findMerchantAccount(merchantId, MERCHANT_PAYABLE)
+        .findMerchantAccount(merchantId, accountName)
         .orElseGet(
             () ->
                 repository
-                    .insertMerchantAccountIfAbsent(
-                        merchantId, AccountType.LIABILITY, MERCHANT_PAYABLE, NormalBalance.CREDIT)
+                    .insertMerchantAccountIfAbsent(merchantId, type, accountName, normalBalance)
                     .orElseGet(
                         () ->
                             repository
-                                .findMerchantAccount(merchantId, MERCHANT_PAYABLE)
+                                .findMerchantAccount(merchantId, accountName)
                                 .orElseThrow(
                                     () ->
                                         new IllegalStateException(
                                             "Failed to create or find "
-                                                + MERCHANT_PAYABLE
+                                                + accountName
                                                 + " account for merchant "
                                                 + merchantId))));
   }

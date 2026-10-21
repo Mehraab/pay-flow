@@ -60,6 +60,11 @@ public class PaymentGatewayController {
     return restClient.get().uri(paymentQueryUrl + "/payments/{id}", id).exchange(this::relay);
   }
 
+  @PostMapping("/{id}/refund")
+  public ResponseEntity<byte[]> refundPayment(@PathVariable String id) {
+    return restClient.post().uri(paymentCommandUrl + "/payments/{id}/refund", id).exchange(this::relay);
+  }
+
   private ResponseEntity<byte[]> relay(HttpRequest request, ConvertibleClientHttpResponse response)
       throws IOException {
     byte[] responseBody = response.getBody().readAllBytes();
