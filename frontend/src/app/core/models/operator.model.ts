@@ -1,20 +1,20 @@
+/**
+ * BE-07 folded health stats directly onto ProviderConfig rather than shipping a
+ * separate health endpoint — there is no ProviderHealth type/call to join client-side.
+ */
 export interface ProviderConfig {
   id: string;
   name: string;
   priority: number;
   active: boolean;
+  healthStatus: string;
+  successRatePct: number;
+  avgLatencyMs: number;
 }
 
 export interface UpdateRoutingRequest {
   priority?: number;
   active?: boolean;
-}
-
-/** STUB(BE-07) — no real endpoint exists yet. */
-export interface ProviderHealth {
-  providerId: string;
-  successRatePct: number;
-  avgLatencyMs: number;
 }
 
 export interface SagaEventResponse {

@@ -8,7 +8,8 @@ export type NavIconName =
   | 'developers'
   | 'integrity'
   | 'provider-health'
-  | 'saga-events';
+  | 'saga-events'
+  | 'webhook-dlq';
 
 export interface NavItem {
   label: string;
@@ -26,4 +27,5 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Ledger Integrity', icon: 'integrity', routerLink: '/operator/integrity', roles: ['OPERATOR'] },
   { label: 'Provider Health', icon: 'provider-health', routerLink: '/operator/providers', roles: ['OPERATOR'] },
   { label: 'Saga Events', icon: 'saga-events', routerLink: '/operator/saga-events', roles: ['OPERATOR'] },
+  { label: 'Webhook DLQ', icon: 'webhook-dlq', routerLink: '/operator/webhooks/dlq', roles: ['OPERATOR'] },
 ];

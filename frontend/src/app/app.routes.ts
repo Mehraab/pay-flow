@@ -2,7 +2,9 @@ import { Routes } from '@angular/router';
 import { authGuard, merchantGuard, operatorGuard } from './core/guards/auth.guard';
 import { SignIn } from './features/auth/sign-in/sign-in';
 import { LedgerIntegrity } from './features/operator/ledger-integrity/ledger-integrity';
+import { ProviderRouting } from './features/operator/provider-routing/provider-routing';
 import { SagaEvents } from './features/operator/saga-events/saga-events';
+import { WebhookDlq } from './features/operator/webhook-dlq/webhook-dlq';
 import { CheckoutDemo } from './features/sandbox/checkout-demo/checkout-demo';
 import { TransactionDetail } from './features/transactions/transaction-detail/transaction-detail';
 import { Transactions } from './features/transactions/transactions';
@@ -60,7 +62,7 @@ export const routes: Routes = [
       },
       {
         path: 'operator/providers',
-        component: PlaceholderView,
+        component: ProviderRouting,
         canActivate: [operatorGuard],
         data: { title: 'Provider Health' },
       },
@@ -69,6 +71,12 @@ export const routes: Routes = [
         component: SagaEvents,
         canActivate: [operatorGuard],
         data: { title: 'Saga Events' },
+      },
+      {
+        path: 'operator/webhooks/dlq',
+        component: WebhookDlq,
+        canActivate: [operatorGuard],
+        data: { title: 'Webhook DLQ', sub: 'Deliveries that exhausted automatic retries' },
       },
     ],
   },
