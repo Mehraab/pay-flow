@@ -8,6 +8,7 @@ import {
   CreatePaymentResponse,
   PageResponse,
   PaymentEvent,
+  PaymentsSummary,
   PaymentViewEnriched,
 } from '../models';
 import { PaymentApiResponse, PaymentTimelineEventApi, toPaymentEvent, toPaymentViewEnriched } from './payment-api.mapper';
@@ -80,5 +81,16 @@ export class PaymentService {
     }
     const body: CreatePaymentRequest = { ...req, forceLedgerFailure: false };
     return this.http.post<CreatePaymentResponse>(`${this.apiBase}/api/v1/payments`, body, { headers });
+  }
+
+  /**
+   * REAL: GET /api/v1/payments/summary (BE-04). Merchant scoping is transparent —
+   * the gateway's JwtAuthenticationFilter injects X-Merchant-Id from the caller's own
+   * JWT before this reaches the query service, so a merchant token sees only its own
+   * payments and an operator token sees the platform-wide aggregate automatically.
+   */
+  getSummary(days = 30): Observable<PaymentsSummary> {
+    const params = new HttpParams().set('days', days);
+    return this.http.get<PaymentsSummary>(`${this.apiBase}/api/v1/payments/summary`, { params });
   }
 }

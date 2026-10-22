@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { authGuard, merchantGuard, operatorGuard } from './core/guards/auth.guard';
 import { SignIn } from './features/auth/sign-in/sign-in';
+import { Overview } from './features/overview/overview';
 import { LedgerIntegrity } from './features/operator/ledger-integrity/ledger-integrity';
 import { ProviderRouting } from './features/operator/provider-routing/provider-routing';
 import { SagaEvents } from './features/operator/saga-events/saga-events';
@@ -21,7 +22,7 @@ export const routes: Routes = [
       { path: '', pathMatch: 'full', redirectTo: 'overview' },
       {
         path: 'overview',
-        component: PlaceholderView,
+        component: Overview,
         data: { title: 'Overview', sub: 'Last 30 days · all providers' },
       },
       {

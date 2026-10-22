@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { environment } from '../../../environments/environment';
-import { PaymentViewEnriched } from '../models';
+import { PaymentsSummary, PaymentViewEnriched } from '../models';
 import { PaymentService } from './payment.service';
 
 describe('PaymentService', () => {
@@ -151,5 +151,43 @@ describe('PaymentService', () => {
     expect(req.request.headers.get('X-Force-Ledger-Failure')).toBe('true');
     expect(req.request.body.forceLedgerFailure).toBe(false);
     req.flush({ paymentId: 'p1' }, { status: 201, statusText: 'Created' });
+  });
+
+  it('getSummary calls the real endpoint with the days param and returns the response as-is', () => {
+    let result: PaymentsSummary | undefined;
+    service.getSummary(30).subscribe((r) => (result = r));
+
+    const req = httpMock.expectOne(
+      (r) => r.url === `${environment.apiBase}/api/v1/payments/summary` && r.method === 'GET',
+    );
+    expect(req.request.params.get('days')).toBe('30');
+    req.flush({
+      netVolumeMinor: 61248090,
+      currency: 'USD',
+      volumeDeltaPct: 12.5,
+      successRatePct: 97.2,
+      avgAuthSeconds: 0.41,
+      dailyVolume: [{ date: '2026-01-01', amountMinor: 1000 }],
+    });
+
+    expect(result?.netVolumeMinor).toBe(61248090);
+    expect(result?.avgAuthSeconds).toBe(0.41);
+  });
+
+  it('getSummary defaults to 30 days when called with no argument', () => {
+    service.getSummary().subscribe();
+
+    const req = httpMock.expectOne(
+      (r) => r.url === `${environment.apiBase}/api/v1/payments/summary` && r.method === 'GET',
+    );
+    expect(req.request.params.get('days')).toBe('30');
+    req.flush({
+      netVolumeMinor: 0,
+      currency: 'USD',
+      volumeDeltaPct: 0,
+      successRatePct: 100,
+      avgAuthSeconds: 0,
+      dailyVolume: [],
+    });
   });
 });
