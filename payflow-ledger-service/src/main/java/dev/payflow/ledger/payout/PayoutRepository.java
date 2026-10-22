@@ -50,6 +50,28 @@ public class PayoutRepository {
         "SELECT * FROM payouts WHERE status = 'IN_TRANSIT' ORDER BY created_at ASC", this::mapRow);
   }
 
+  /** BE-10: merchant payout history, newest first. */
+  public List<Payout> findByMerchantId(UUID merchantId, int offset, int limit) {
+    return jdbc.query(
+        """
+        SELECT * FROM payouts
+        WHERE merchant_id = :merchantId
+        ORDER BY created_at DESC
+        LIMIT :limit OFFSET :offset
+        """,
+        new MapSqlParameterSource().addValue("merchantId", merchantId).addValue("limit", limit).addValue("offset", offset),
+        this::mapRow);
+  }
+
+  public long countByMerchantId(UUID merchantId) {
+    Long count =
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM payouts WHERE merchant_id = :merchantId",
+            new MapSqlParameterSource().addValue("merchantId", merchantId),
+            Long.class);
+    return count != null ? count : 0L;
+  }
+
   private MapSqlParameterSource paramsFor(Payout payout) {
     return new MapSqlParameterSource()
         .addValue("id", payout.id())

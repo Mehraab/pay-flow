@@ -101,4 +101,62 @@ class PayoutControllerTest {
         .andExpect(jsonPath("$").isArray())
         .andExpect(jsonPath("$").isEmpty());
   }
+
+  @Test
+  void listPayoutsResolvesTheMerchantIdFromTheQueryParam() throws Exception {
+    UUID merchantId = UUID.randomUUID();
+    Payout payout =
+        new Payout(UUID.randomUUID(), merchantId, 20_779, "USD", PayoutStatus.SETTLED, Instant.now(), null);
+    when(postingService.findMerchantPayoutsPaged(merchantId, 0, 20)).thenReturn(List.of(payout));
+    when(postingService.countMerchantPayouts(merchantId)).thenReturn(1L);
+
+    mockMvc
+        .perform(get("/payouts").param("merchantId", merchantId.toString()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content.length()").value(1))
+        .andExpect(jsonPath("$.content[0].merchantId").value(merchantId.toString()))
+        .andExpect(jsonPath("$.totalElements").value(1));
+  }
+
+  @Test
+  void listPayoutsResolvesTheMerchantIdFromTheHeaderWhenNoQueryParamIsGiven() throws Exception {
+    UUID merchantId = UUID.randomUUID();
+    when(postingService.findMerchantPayoutsPaged(merchantId, 0, 20)).thenReturn(List.of());
+    when(postingService.countMerchantPayouts(merchantId)).thenReturn(0L);
+
+    mockMvc
+        .perform(get("/payouts").header("X-Merchant-Id", merchantId.toString()))
+        .andExpect(status().isOk());
+
+    verify(postingService).findMerchantPayoutsPaged(merchantId, 0, 20);
+  }
+
+  @Test
+  void listPayoutsReturns400WhenNoMerchantIdIsResolvable() throws Exception {
+    mockMvc.perform(get("/payouts")).andExpect(status().isBadRequest());
+  }
+
+  @Test
+  void listPayoutsReturns403WhenTheQueryParamDoesNotMatchTheMerchantIdHeader() throws Exception {
+    UUID headerMerchantId = UUID.randomUUID();
+    UUID queryMerchantId = UUID.randomUUID();
+
+    mockMvc
+        .perform(
+            get("/payouts")
+                .header("X-Merchant-Id", headerMerchantId.toString())
+                .param("merchantId", queryMerchantId.toString()))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void listPayoutsForMerchantDelegatesToListPayouts() throws Exception {
+    UUID merchantId = UUID.randomUUID();
+    when(postingService.findMerchantPayoutsPaged(merchantId, 0, 20)).thenReturn(List.of());
+    when(postingService.countMerchantPayouts(merchantId)).thenReturn(0L);
+
+    mockMvc.perform(get("/payouts/merchants/{merchantId}", merchantId)).andExpect(status().isOk());
+
+    verify(postingService).findMerchantPayoutsPaged(merchantId, 0, 20);
+  }
 }

@@ -158,9 +158,69 @@ public class PaymentGatewayController {
     return restClient.get().uri(uri).exchange(this::relay);
   }
 
+  @GetMapping("/ledger/merchants/{merchantId}/entries")
+  public ResponseEntity<byte[]> merchantLedgerEntries(
+      @PathVariable String merchantId,
+      @RequestHeader(value = "X-Merchant-Id", required = false) String merchantIdHeader,
+      @RequestParam(value = "page", required = false) Integer page,
+      @RequestParam(value = "size", required = false) Integer size) {
+    URI uri =
+        UriComponentsBuilder.fromUriString(ledgerUrl + "/ledger/merchants/" + merchantId + "/entries")
+            .queryParamIfPresent("page", Optional.ofNullable(page))
+            .queryParamIfPresent("size", Optional.ofNullable(size))
+            .build()
+            .toUri();
+    RequestHeadersSpec<?> spec = restClient.get().uri(uri);
+    if (merchantIdHeader != null) {
+      spec = spec.header("X-Merchant-Id", merchantIdHeader);
+    }
+    return spec.exchange(this::relay);
+  }
+
   @PostMapping("/payouts")
   public ResponseEntity<byte[]> createPayout(@RequestBody byte[] body) {
     return restClient.post().uri(ledgerUrl + "/payouts").contentType(MediaType.APPLICATION_JSON).body(body).exchange(this::relay);
+  }
+
+  // Declared ahead of GET /payouts/{id} — Spring MVC must never mistake "merchants" for a payout
+  // id.
+  @GetMapping("/payouts")
+  public ResponseEntity<byte[]> listPayouts(
+      @RequestHeader(value = "X-Merchant-Id", required = false) String merchantIdHeader,
+      @RequestParam(value = "merchantId", required = false) String merchantId,
+      @RequestParam(value = "page", required = false) Integer page,
+      @RequestParam(value = "size", required = false) Integer size) {
+    URI uri =
+        UriComponentsBuilder.fromUriString(ledgerUrl + "/payouts")
+            .queryParamIfPresent("merchantId", Optional.ofNullable(merchantId))
+            .queryParamIfPresent("page", Optional.ofNullable(page))
+            .queryParamIfPresent("size", Optional.ofNullable(size))
+            .build()
+            .toUri();
+    RequestHeadersSpec<?> spec = restClient.get().uri(uri);
+    if (merchantIdHeader != null) {
+      spec = spec.header("X-Merchant-Id", merchantIdHeader);
+    }
+    return spec.exchange(this::relay);
+  }
+
+  @GetMapping("/payouts/merchants/{merchantId}")
+  public ResponseEntity<byte[]> payoutsForMerchant(
+      @PathVariable String merchantId,
+      @RequestHeader(value = "X-Merchant-Id", required = false) String merchantIdHeader,
+      @RequestParam(value = "page", required = false) Integer page,
+      @RequestParam(value = "size", required = false) Integer size) {
+    URI uri =
+        UriComponentsBuilder.fromUriString(ledgerUrl + "/payouts/merchants/" + merchantId)
+            .queryParamIfPresent("page", Optional.ofNullable(page))
+            .queryParamIfPresent("size", Optional.ofNullable(size))
+            .build()
+            .toUri();
+    RequestHeadersSpec<?> spec = restClient.get().uri(uri);
+    if (merchantIdHeader != null) {
+      spec = spec.header("X-Merchant-Id", merchantIdHeader);
+    }
+    return spec.exchange(this::relay);
   }
 
   @GetMapping("/payouts/{id}")

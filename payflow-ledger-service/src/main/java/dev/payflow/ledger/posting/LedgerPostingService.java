@@ -204,6 +204,24 @@ public class LedgerPostingService {
     return entryRepository.countEntries(since);
   }
 
+  /** BE-09: merchant-wide ledger feed, newest first — see {@code GET /ledger/merchants/{id}/entries}. */
+  public List<LedgerEntry> findMerchantEntriesPaged(UUID merchantId, int page, int size) {
+    return entryRepository.findEntriesByMerchantId(merchantId, page * size, size);
+  }
+
+  public long countMerchantEntries(UUID merchantId) {
+    return entryRepository.countEntriesByMerchantId(merchantId);
+  }
+
+  /** BE-10: merchant payout history, newest first — see {@code GET /payouts}. */
+  public List<Payout> findMerchantPayoutsPaged(UUID merchantId, int page, int size) {
+    return payoutRepository.findByMerchantId(merchantId, page * size, size);
+  }
+
+  public long countMerchantPayouts(UUID merchantId) {
+    return payoutRepository.countByMerchantId(merchantId);
+  }
+
   private UUID resolveMerchantId(List<LedgerEntry> entries) {
     for (LedgerEntry entry : entries) {
       LedgerAccount creditAccount = accountService.findById(entry.creditAccountId()).orElseThrow();

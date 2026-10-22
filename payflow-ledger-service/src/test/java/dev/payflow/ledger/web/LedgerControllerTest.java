@@ -239,4 +239,58 @@ class LedgerControllerTest {
 
     verify(postingService).findEntriesPaged(since, 2, 5);
   }
+
+  @Test
+  void merchantLedgerEntriesReturnsAPageOfTheMerchantsEntries() throws Exception {
+    UUID merchantId = UUID.randomUUID();
+    UUID debitAccountId = UUID.randomUUID();
+    UUID creditAccountId = UUID.randomUUID();
+    Instant postedAt = Instant.parse("2026-01-01T00:00:00Z");
+    LedgerEntry entry =
+        new LedgerEntry(UUID.randomUUID(), "demo-ref", debitAccountId, creditAccountId, 20_779, postedAt);
+    when(postingService.findMerchantEntriesPaged(merchantId, 0, 20)).thenReturn(List.of(entry));
+    when(postingService.countMerchantEntries(merchantId)).thenReturn(1L);
+
+    mockMvc
+        .perform(get("/ledger/merchants/{merchantId}/entries", merchantId))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content.length()").value(1))
+        .andExpect(jsonPath("$.content[0].transactionRef").value("demo-ref"))
+        .andExpect(jsonPath("$.content[0].status").value("POSTED"))
+        .andExpect(jsonPath("$.totalElements").value(1));
+  }
+
+  @Test
+  void merchantLedgerEntriesForwardsPageAndSizeParams() throws Exception {
+    UUID merchantId = UUID.randomUUID();
+    when(postingService.findMerchantEntriesPaged(merchantId, 1, 5)).thenReturn(List.of());
+    when(postingService.countMerchantEntries(merchantId)).thenReturn(0L);
+
+    mockMvc
+        .perform(get("/ledger/merchants/{merchantId}/entries", merchantId).param("page", "1").param("size", "5"))
+        .andExpect(status().isOk());
+
+    verify(postingService).findMerchantEntriesPaged(merchantId, 1, 5);
+  }
+
+  @Test
+  void merchantLedgerEntriesPassesWhenTheMerchantIdHeaderMatches() throws Exception {
+    UUID merchantId = UUID.randomUUID();
+    when(postingService.findMerchantEntriesPaged(merchantId, 0, 20)).thenReturn(List.of());
+    when(postingService.countMerchantEntries(merchantId)).thenReturn(0L);
+
+    mockMvc
+        .perform(get("/ledger/merchants/{merchantId}/entries", merchantId).header("X-Merchant-Id", merchantId.toString()))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  void merchantLedgerEntriesReturns403WhenTheMerchantIdHeaderDoesNotMatch() throws Exception {
+    UUID merchantId = UUID.randomUUID();
+    UUID otherMerchantId = UUID.randomUUID();
+
+    mockMvc
+        .perform(get("/ledger/merchants/{merchantId}/entries", merchantId).header("X-Merchant-Id", otherMerchantId.toString()))
+        .andExpect(status().isForbidden());
+  }
 }

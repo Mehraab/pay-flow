@@ -91,4 +91,20 @@ public class LedgerController {
     int totalPages = size > 0 ? (int) Math.ceil((double) totalElements / size) : 0;
     return new PageResponse<>(content, page, size, totalElements, totalPages);
   }
+
+  @GetMapping("/ledger/merchants/{merchantId}/entries")
+  public ResponseEntity<PageResponse<LedgerEntryResponse>> merchantLedgerEntries(
+      @PathVariable UUID merchantId,
+      @RequestHeader(value = "X-Merchant-Id", required = false) String merchantIdHeader,
+      @RequestParam(value = "page", defaultValue = "0") int page,
+      @RequestParam(value = "size", defaultValue = "20") int size) {
+    if (merchantIdHeader != null && !merchantId.toString().equalsIgnoreCase(merchantIdHeader)) {
+      return ResponseEntity.status(403).build();
+    }
+    List<LedgerEntryResponse> content =
+        postingService.findMerchantEntriesPaged(merchantId, page, size).stream().map(this::toResponse).toList();
+    long totalElements = postingService.countMerchantEntries(merchantId);
+    int totalPages = size > 0 ? (int) Math.ceil((double) totalElements / size) : 0;
+    return ResponseEntity.ok(new PageResponse<>(content, page, size, totalElements, totalPages));
+  }
 }

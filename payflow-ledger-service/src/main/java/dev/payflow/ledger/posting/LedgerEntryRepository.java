@@ -87,6 +87,45 @@ public class LedgerEntryRepository {
     return count != null ? count : 0L;
   }
 
+  /**
+   * BE-09: merchant-wide ledger feed. An entry belongs to a merchant if either leg of its
+   * double-entry pair posts to one of that merchant's accounts — an {@code EXISTS} subquery
+   * rather than a join + {@code DISTINCT}, since a join on {@code debit_account_id OR
+   * credit_account_id} would otherwise risk returning the same row twice.
+   */
+  public List<LedgerEntry> findEntriesByMerchantId(UUID merchantId, int offset, int limit) {
+    return jdbc.query(
+        """
+        SELECT e.id, e.transaction_ref, e.debit_account_id, e.credit_account_id, e.amount_minor, e.posted_at
+        FROM ledger_entries e
+        WHERE EXISTS (
+            SELECT 1 FROM ledger_accounts a
+            WHERE a.merchant_id = :merchantId
+              AND (a.id = e.debit_account_id OR a.id = e.credit_account_id)
+        )
+        ORDER BY e.posted_at DESC
+        LIMIT :limit OFFSET :offset
+        """,
+        new MapSqlParameterSource().addValue("merchantId", merchantId).addValue("limit", limit).addValue("offset", offset),
+        this::mapRow);
+  }
+
+  public long countEntriesByMerchantId(UUID merchantId) {
+    Long count =
+        jdbc.queryForObject(
+            """
+            SELECT COUNT(*) FROM ledger_entries e
+            WHERE EXISTS (
+                SELECT 1 FROM ledger_accounts a
+                WHERE a.merchant_id = :merchantId
+                  AND (a.id = e.debit_account_id OR a.id = e.credit_account_id)
+            )
+            """,
+            new MapSqlParameterSource().addValue("merchantId", merchantId),
+            Long.class);
+    return count != null ? count : 0L;
+  }
+
   public boolean existsForTransactionRef(String transactionRef) {
     Integer count =
         jdbc.queryForObject(
