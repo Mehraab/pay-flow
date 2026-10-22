@@ -112,4 +112,44 @@ describe('PaymentService', () => {
     expect(req.request.method).toBe('POST');
     req.flush(null);
   });
+
+  it('createPayment sends a generated Idempotency-Key and no X-Force-Ledger-Failure header by default', () => {
+    service
+      .createPayment({
+        merchantId: 'm1',
+        amountMinor: 1000,
+        currency: 'USD',
+        cardNumber: '4242424242424242',
+        forceLedgerFailure: false,
+        customer: 'Ava',
+      })
+      .subscribe();
+
+    const req = httpMock.expectOne(`${environment.apiBase}/api/v1/payments`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.headers.get('Idempotency-Key')).toBeTruthy();
+    expect(req.request.headers.has('X-Force-Ledger-Failure')).toBe(false);
+    expect(req.request.body.forceLedgerFailure).toBe(false);
+    req.flush({ paymentId: 'p1' }, { status: 201, statusText: 'Created' });
+  });
+
+  it('createPayment sets X-Force-Ledger-Failure: true (header, not body) when requested', () => {
+    service
+      .createPayment(
+        {
+          merchantId: 'm1',
+          amountMinor: 1000,
+          currency: 'USD',
+          cardNumber: '4242424242424242',
+          forceLedgerFailure: false,
+        },
+        { forceLedgerFailure: true },
+      )
+      .subscribe();
+
+    const req = httpMock.expectOne(`${environment.apiBase}/api/v1/payments`);
+    expect(req.request.headers.get('X-Force-Ledger-Failure')).toBe('true');
+    expect(req.request.body.forceLedgerFailure).toBe(false);
+    req.flush({ paymentId: 'p1' }, { status: 201, statusText: 'Created' });
+  });
 });

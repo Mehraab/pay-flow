@@ -1,0 +1,152 @@
+<div class="warning-banner">
+  <b>Internal engineering tool — not the real checkout path.</b>
+  <span>
+    In production, <code class="mono">POST /api/v1/payments</code> is called server-to-server by the
+    merchant's own site, never by this console. This form exists only to demo the saga end-to-end
+    (including ledger-failure compensation) without standing up a second app.
+  </span>
+</div>
+
+<div class="card panel">
+  <div class="panel-head"><h3>Create a test payment</h3></div>
+
+  <div class="form-grid">
+    <div class="field">
+      <label for="amountMinor">Amount (minor units)</label>
+      <input
+        id="amountMinor"
+        type="number"
+        min="1"
+        [value]="amountMinor()"
+        (input)="amountMinor.set(+$any($event.target).value)"
+      />
+      <span class="field-hint">{{ formatMoney(amountMinor(), currency()) }}</span>
+    </div>
+
+    <div class="field">
+      <label>Currency</label>
+      <div class="role-toggle">
+        @for (c of currencies; track c) {
+          <button type="button" [class.active]="currency() === c" (click)="currency.set(c)">{{ c }}</button>
+        }
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="merchantId">Merchant ID</label>
+      <input
+        id="merchantId"
+        type="text"
+        placeholder="Required — the merchant to create this payment under"
+        [value]="merchantId()"
+        (input)="merchantId.set($any($event.target).value)"
+      />
+    </div>
+
+    <div class="field">
+      <label for="customerName">Customer (optional)</label>
+      <input
+        id="customerName"
+        type="text"
+        [value]="customerName()"
+        (input)="customerName.set($any($event.target).value)"
+      />
+    </div>
+
+    <div class="field field-wide">
+      <label for="cardNumber">Card number</label>
+      <input
+        id="cardNumber"
+        type="text"
+        class="mono"
+        [value]="cardNumber()"
+        (input)="cardNumber.set($any($event.target).value)"
+      />
+      <div class="preset-row">
+        @for (preset of cardPresets; track preset.cardNumber) {
+          <button
+            type="button"
+            class="chip"
+            [class.active]="cardNumber() === preset.cardNumber"
+            (click)="selectPreset(preset)"
+          >
+            {{ preset.label }}
+          </button>
+        }
+      </div>
+    </div>
+
+    <div class="field field-wide">
+      <label class="toggle-label">
+        <input
+          type="checkbox"
+          [checked]="forceLedgerFailure()"
+          (change)="forceLedgerFailure.set($any($event.target).checked)"
+        />
+        Force ledger failure (drives the saga into compensation → REFUNDED)
+      </label>
+    </div>
+  </div>
+
+  <button class="btn-primary" type="button" [disabled]="!canSubmit()" (click)="submit()">
+    {{ isSubmitting() ? 'Submitting…' : 'Create payment' }}
+  </button>
+</div>
+
+<!-- Empty: N/A by design — a single submission has no "zero results" shape. -->
+
+@if (isBusy()) {
+  <div class="card panel result-panel">
+    <div class="panel-head"><h3>Result</h3></div>
+    <div class="status-line">
+      <span class="spinner"></span>
+      @if (isSubmitting()) {
+        <span>Submitting…</span>
+      } @else {
+        <span>
+          Processing (saga running)…
+          @if (inFlightPayment()) {
+            current status: {{ statusLabel(inFlightPayment()!.status) }}
+          }
+        </span>
+      }
+    </div>
+  </div>
+}
+
+@if (hasError()) {
+  <div class="card panel result-panel">
+    <div class="panel-head"><h3>Result</h3></div>
+    <div class="banner error" style="margin-bottom: 0">
+      <span>{{ errorMessage() }}</span>
+    </div>
+  </div>
+}
+
+@if (isSuccess()) {
+  @let p = inFlightPayment()!;
+  <div class="card panel result-panel">
+    <div class="panel-head"><h3>Result</h3></div>
+    <div class="status-line">
+      <span class="status-pill {{ statusPillVariant(p.status) }}">
+        <span class="dot"></span>{{ statusLabel(p.status) }}
+      </span>
+      <span class="tab">{{ formatMoney(p.amountMinor, p.currency) }}</span>
+    </div>
+    <dl class="meta-list">
+      @if (p.providerRef) {
+        <div>
+          <dt>Provider ref</dt>
+          <dd class="mono">{{ p.providerRef }}</dd>
+        </div>
+      }
+      @if (p.declineReason) {
+        <div>
+          <dt>Decline reason</dt>
+          <dd>{{ p.declineReason }}</dd>
+        </div>
+      }
+    </dl>
+    <a class="btn-outline" [routerLink]="['/transactions', p.paymentId]">View in Transactions</a>
+  </div>
+}

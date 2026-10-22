@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { authGuard, merchantGuard, operatorGuard } from './core/guards/auth.guard';
 import { SignIn } from './features/auth/sign-in/sign-in';
+import { CheckoutDemo } from './features/sandbox/checkout-demo/checkout-demo';
 import { TransactionDetail } from './features/transactions/transaction-detail/transaction-detail';
 import { Transactions } from './features/transactions/transactions';
 import { AppShell } from './layout/app-shell/app-shell';
@@ -39,7 +40,7 @@ export const routes: Routes = [
       },
       {
         path: 'sandbox',
-        component: PlaceholderView,
+        component: CheckoutDemo,
         canActivate: [merchantGuard],
         data: { title: 'Sandbox (Demo)', sub: 'Internal engineering tool — not the real checkout path' },
       },
