@@ -1,4 +1,4 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { HeaderBar } from '../header-bar/header-bar';
@@ -16,4 +16,16 @@ export class AppShell {
 
   readonly roleLabel = computed(() => (this.authService.role() === 'OPERATOR' ? 'Operator' : 'Merchant'));
   readonly identityLabel = computed(() => this.authService.merchantId() ?? 'No merchant scope');
+
+  protected readonly signingOut = signal(false);
+
+  protected signOut(): void {
+    if (this.signingOut()) return;
+    this.signingOut.set(true);
+    this.authService.revokeAndLogout().subscribe({
+      // finalize() inside revokeAndLogout() still clears state and navigates to
+      // /signin even when the POST /auth/revoke call itself fails.
+      error: () => this.signingOut.set(false),
+    });
+  }
 }
