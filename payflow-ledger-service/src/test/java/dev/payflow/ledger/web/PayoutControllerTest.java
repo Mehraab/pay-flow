@@ -8,6 +8,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import dev.payflow.ledger.payout.MerchantPayableAccountNotFoundException;
+import dev.payflow.ledger.payout.NoPayoutBalanceAvailableException;
 import dev.payflow.ledger.payout.Payout;
 import dev.payflow.ledger.payout.PayoutStatus;
 import dev.payflow.ledger.posting.LedgerPostingService;
@@ -50,6 +52,35 @@ class PayoutControllerTest {
         .andExpect(jsonPath("$.status").value("IN_TRANSIT"));
 
     verify(postingService).createPayout(eq(merchantId));
+  }
+
+  @Test
+  void createPayoutReturns404WhenTheMerchantHasNoPayableAccount() throws Exception {
+    UUID merchantId = UUID.randomUUID();
+    when(postingService.createPayout(merchantId))
+        .thenThrow(new MerchantPayableAccountNotFoundException("No Merchant Payable account for merchant " + merchantId));
+
+    mockMvc
+        .perform(
+            post("/payouts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CreatePayoutRequest(merchantId))))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.error").value("No Merchant Payable account for merchant " + merchantId));
+  }
+
+  @Test
+  void createPayoutReturns409WhenThereIsNoAvailableBalance() throws Exception {
+    UUID merchantId = UUID.randomUUID();
+    when(postingService.createPayout(merchantId)).thenThrow(new NoPayoutBalanceAvailableException("No available balance for payout"));
+
+    mockMvc
+        .perform(
+            post("/payouts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CreatePayoutRequest(merchantId))))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.error").value("No available balance for payout"));
   }
 
   @Test

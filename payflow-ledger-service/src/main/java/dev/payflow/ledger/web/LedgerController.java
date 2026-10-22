@@ -33,6 +33,10 @@ public class LedgerController {
       @RequestHeader(value = "X-Force-Ledger-Failure", required = false) Boolean forceFailure,
       @RequestBody PostCaptureRequest request) {
     if (Boolean.TRUE.equals(forceFailure)) {
+      // BE-11: deliberately a plain, uncaught IllegalStateException (-> 500), not one of
+      // LedgerExceptionHandler's mapped types — this simulates a genuine ledger-side outage for
+      // the saga-compensation tests in payflow-payment-orchestrator, which needs an opaque
+      // server fault here, not a clean 4xx.
       throw new IllegalStateException("Simulated ledger failure for payment " + request.paymentId());
     }
     Money amount = Money.of(request.amountMinor(), Currency.valueOf(request.currency()));

@@ -8,6 +8,8 @@ import dev.payflow.common.domain.Money;
 import dev.payflow.ledger.AbstractPostgresIntegrationTest;
 import dev.payflow.ledger.account.LedgerAccount;
 import dev.payflow.ledger.account.LedgerAccountService;
+import dev.payflow.ledger.payout.MerchantPayableAccountNotFoundException;
+import dev.payflow.ledger.payout.NoPayoutBalanceAvailableException;
 import dev.payflow.ledger.payout.Payout;
 import dev.payflow.ledger.payout.PayoutStatus;
 import java.time.Instant;
@@ -178,8 +180,10 @@ class LedgerPostingServiceTest extends AbstractPostgresIntegrationTest {
   void createPayoutThrowsWhenTheMerchantHasNoPayableAccountAtAll() {
     UUID merchantId = UUID.randomUUID(); // never captured anything — no account was ever created
 
+    // BE-11: the specific subtype matters — LedgerExceptionHandler maps it to 404, distinctly
+    // from the zero-balance case below (409).
     assertThatThrownBy(() -> postingService.createPayout(merchantId))
-        .isInstanceOf(IllegalStateException.class);
+        .isInstanceOf(MerchantPayableAccountNotFoundException.class);
   }
 
   @Test
@@ -191,7 +195,7 @@ class LedgerPostingServiceTest extends AbstractPostgresIntegrationTest {
     postingService.reverseCaptureIfExists(paymentId); // brings Merchant Payable back to 0
 
     assertThatThrownBy(() -> postingService.createPayout(merchantId))
-        .isInstanceOf(IllegalStateException.class);
+        .isInstanceOf(NoPayoutBalanceAvailableException.class);
   }
 
   @Test
