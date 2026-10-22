@@ -1,0 +1,109 @@
+<div class="ledger-accounts">
+  @if (balancesLoading()) {
+    <div class="card"><div class="skeleton-bar" style="height: 60px"></div></div>
+    <div class="card"><div class="skeleton-bar" style="height: 60px"></div></div>
+  }
+  @if (balances(); as b) {
+    <div class="card">
+      <div class="kind">Liability</div>
+      <div class="name">Merchant payable (available)</div>
+      <div class="bal tab">{{ formatMoney(b.payableMinor, 'USD') }}</div>
+    </div>
+    <div class="card">
+      <div class="kind">Liability</div>
+      <div class="name">Payout in-transit</div>
+      <div class="bal tab">{{ formatMoney(b.transitMinor, 'USD') }}</div>
+    </div>
+  }
+</div>
+
+@if (balancesError()) {
+  <div class="banner error">
+    <span>{{ balancesError() }}</span>
+    <button type="button" (click)="loadBalances()">Retry</button>
+  </div>
+}
+
+<div class="card panel">
+  <div class="ledger-head-row">
+    <div class="panel-head" style="margin: 0">
+      <h3>Double-entry log</h3>
+      <span class="hint">rebuildable from the Kafka event log</span>
+    </div>
+    <button class="btn-outline" type="button" [disabled]="payoutLoading()" (click)="requestPayout()">
+      {{ payoutLoading() ? 'Requesting…' : 'Request Payout' }}
+    </button>
+  </div>
+
+  @if (payout(); as p) {
+    @if (payoutLoading()) {
+      <div class="banner info">
+        <span>Payout requested — In-Transit…</span>
+      </div>
+    } @else if (payoutError()) {
+      <div class="banner error">
+        <span>{{ payoutError() }}</span>
+      </div>
+    } @else {
+      <div class="banner" [class.success]="p.status === 'SETTLED'" [class.error]="p.status === 'FAILED'">
+        <span>Payout {{ p.status === 'SETTLED' ? 'settled' : 'failed' }}: {{ formatMoney(p.amountMinor, p.currency) }}</span>
+      </div>
+    }
+  } @else if (payoutError()) {
+    <div class="banner error">
+      <span>{{ payoutError() }}</span>
+    </div>
+  }
+
+  @if (entriesError()) {
+    <div class="banner error">
+      <span>{{ entriesError() }}</span>
+      <button type="button" (click)="loadEntries()">Retry</button>
+    </div>
+  }
+
+  @if (entriesLoading() || entries().length > 0) {
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Transaction</th>
+            <th>Debit account</th>
+            <th>Credit account</th>
+            <th>Status</th>
+            <th class="amount">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (entriesLoading()) {
+            @for (row of skeletonRows; track $index) {
+              <tr>
+                <td colspan="6"><div class="skeleton-bar" style="height: 18px"></div></td>
+              </tr>
+            }
+          }
+          @if (!entriesLoading()) {
+            @for (entry of entries(); track entry.id) {
+              <tr>
+                <td>{{ entry.postedAt | date: 'MMM d, h:mm:ss a' }}</td>
+                <td class="cell-id mono">{{ entry.transactionRef }}</td>
+                <td class="mono">{{ entry.debitAccountId.slice(0, 8) }}</td>
+                <td class="mono">{{ entry.creditAccountId.slice(0, 8) }}</td>
+                <td>{{ entry.status }}</td>
+                <td class="amount tab">{{ formatMoney(entry.amountMinor, 'USD') }}</td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+  @if (entriesEmpty()) {
+    <div class="empty-state">
+      <b>No ledger entries yet</b>
+      <span>Entries will show up here once your account has settled transactions.</span>
+    </div>
+  }
+</div>

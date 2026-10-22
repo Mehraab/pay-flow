@@ -117,4 +117,36 @@ describe('OperatorService', () => {
 
     expect(result?.status).toBe('DELIVERED');
   });
+
+  it('listWebhookDeliveries calls GET /webhooks/deliveries and unwraps PageResponse.content', () => {
+    let result: WebhookDeliveryResponse[] | undefined;
+    service.listWebhookDeliveries().subscribe((r) => (result = r));
+
+    const req = httpMock.expectOne(
+      (r) => r.url === `${environment.apiBase}/webhooks/deliveries` && r.method === 'GET',
+    );
+    expect(req.request.params.get('page')).toBe('0');
+    expect(req.request.params.get('size')).toBe('20');
+    req.flush({
+      content: [
+        {
+          id: 'd1',
+          endpointId: 'e1',
+          eventType: 'payment.captured',
+          status: 'DELIVERED',
+          attemptCount: 1,
+          responseCode: 200,
+          lastAttemptAt: '2026-01-01T00:00:00Z',
+          nextRetryAt: null,
+        },
+      ],
+      page: 0,
+      size: 20,
+      totalElements: 1,
+      totalPages: 1,
+    });
+
+    expect(result?.length).toBe(1);
+    expect(result?.[0].eventType).toBe('payment.captured');
+  });
 });

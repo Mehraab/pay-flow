@@ -1,8 +1,15 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
-import { ProviderConfig, SagaEventResponse, UpdateRoutingRequest, WebhookDeliveryResponse } from '../models';
+import {
+  PageResponse,
+  ProviderConfig,
+  SagaEventResponse,
+  UpdateRoutingRequest,
+  WebhookDeliveryResponse,
+} from '../models';
 
 @Injectable({ providedIn: 'root' })
 export class OperatorService {
@@ -32,5 +39,21 @@ export class OperatorService {
   /** REAL: POST /operator/webhooks/dlq/{id}/retry */
   retryWebhookDelivery(id: string): Observable<WebhookDeliveryResponse> {
     return this.http.post<WebhookDeliveryResponse>(`${this.apiBase}/operator/webhooks/dlq/${id}/retry`, {});
+  }
+
+  /**
+   * REAL: GET /webhooks/deliveries (BE-08) — merchant-facing, every delivery (not just
+   * dead-lettered). Lives here rather than a 5th service: X-Merchant-Id is required by
+   * the downstream NotificationController, but the gateway injects it transparently
+   * from a ROLE_MERCHANT caller's own JWT, so there's nothing to pass client-side.
+   * Placed on OperatorService since that's already the adapter's home for /webhooks/**
+   * calls (Task 6's DLQ methods) — the Conventions fix the adapter at exactly four
+   * services, so a merchant-facing call living here is the accepted naming tradeoff.
+   */
+  listWebhookDeliveries(filter: { page?: number; size?: number } = {}): Observable<WebhookDeliveryResponse[]> {
+    const params = new HttpParams().set('page', filter.page ?? 0).set('size', filter.size ?? 20);
+    return this.http
+      .get<PageResponse<WebhookDeliveryResponse>>(`${this.apiBase}/webhooks/deliveries`, { params })
+      .pipe(map((res) => res.content));
   }
 }

@@ -1,6 +1,8 @@
 import { Routes } from '@angular/router';
 import { authGuard, merchantGuard, operatorGuard } from './core/guards/auth.guard';
 import { SignIn } from './features/auth/sign-in/sign-in';
+import { Developers } from './features/developers/developers';
+import { Ledger } from './features/ledger/ledger';
 import { Overview } from './features/overview/overview';
 import { LedgerIntegrity } from './features/operator/ledger-integrity/ledger-integrity';
 import { ProviderRouting } from './features/operator/provider-routing/provider-routing';
@@ -10,7 +12,6 @@ import { CheckoutDemo } from './features/sandbox/checkout-demo/checkout-demo';
 import { TransactionDetail } from './features/transactions/transaction-detail/transaction-detail';
 import { Transactions } from './features/transactions/transactions';
 import { AppShell } from './layout/app-shell/app-shell';
-import { PlaceholderView } from './shared/components/placeholder-view/placeholder-view';
 
 export const routes: Routes = [
   { path: 'signin', component: SignIn },
@@ -39,7 +40,7 @@ export const routes: Routes = [
       },
       {
         path: 'ledger',
-        component: PlaceholderView,
+        component: Ledger,
         canActivate: [merchantGuard],
         data: { title: 'Ledger' },
       },
@@ -51,7 +52,7 @@ export const routes: Routes = [
       },
       {
         path: 'developers',
-        component: PlaceholderView,
+        component: Developers,
         canActivate: [merchantGuard],
         data: { title: 'Developers' },
       },

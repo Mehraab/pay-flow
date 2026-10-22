@@ -334,6 +334,11 @@ th.amount {
   color: var(--status-pending);
   border: 1px solid color-mix(in srgb, var(--status-pending) 35%, transparent);
 }
+.banner.success {
+  background: color-mix(in srgb, var(--status-captured) 12%, transparent);
+  color: var(--status-captured);
+  border: 1px solid color-mix(in srgb, var(--status-captured) 35%, transparent);
+}
 .banner button {
   border: 1px solid currentColor;
   background: transparent;
@@ -344,6 +349,20 @@ th.amount {
   font-size: 12px;
   cursor: pointer;
   flex: none;
+}
+
+/* Marks data that isn't real yet (a mocked stat, a STUB panel) — used across several
+   operator/merchant views, so it's shared rather than redefined per component. */
+.mocked-tag {
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 600;
+  font-size: 10.5px;
+  color: var(--status-pending);
+  background: color-mix(in srgb, var(--status-pending) 15%, transparent);
+  padding: 1px 6px;
+  border-radius: 999px;
+  margin-left: 6px;
 }
 
 .skeleton-bar {

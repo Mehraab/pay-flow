@@ -43,3 +43,9 @@ export interface PayoutResponse {
   status: string;
   createdAt: string;
 }
+
+/** View-model joining the merchant's two real balance accounts into one card pair. */
+export interface MerchantBalances {
+  payableMinor: number;
+  transitMinor: number;
+}
