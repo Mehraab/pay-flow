@@ -1,0 +1,58 @@
+<div class="card panel">
+  <div class="panel-head">
+    <h3>Saga executions</h3>
+    <span class="hint">from Temporal's Visibility API</span>
+  </div>
+
+  @if (hasError()) {
+    <div class="banner error">
+      <span>{{ errorMessage() }}</span>
+      <button type="button" (click)="load()">Retry</button>
+    </div>
+  }
+
+  @if (isLoading() || isSuccess()) {
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Workflow ID</th>
+            <th>Status</th>
+            <th>Duration</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (isLoading()) {
+            @for (row of skeletonRows; track $index) {
+              <tr>
+                <td colspan="4"><div class="skeleton-bar" style="height: 18px"></div></td>
+              </tr>
+            }
+          }
+          @if (isSuccess()) {
+            @for (event of events(); track event.workflowId) {
+              <tr>
+                <td>{{ event.startTime | date: 'MMM d, h:mm:ss a' }}</td>
+                <td class="mono">{{ event.workflowId }}</td>
+                <td>
+                  <span class="status-pill {{ statusPillVariant(event.status) }}">
+                    <span class="dot"></span>{{ event.status }}
+                  </span>
+                </td>
+                <td>{{ formatDuration(event.startTime, event.closeTime) }}</td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+  @if (isEmpty()) {
+    <div class="empty-state">
+      <b>No saga executions recorded</b>
+      <span>A clean system under light load can have zero failed or compensated sagas — that's good news.</span>
+    </div>
+  }
+</div>

@@ -1,0 +1,123 @@
+@if (integrityLoading()) {
+  <div class="skeleton-bar" style="height: 64px; border-radius: 12px; margin-bottom: 18px"></div>
+}
+@if (integrityError()) {
+  <div class="banner error">
+    <span>{{ integrityError() }}</span>
+    <button type="button" (click)="loadIntegrity()">Retry</button>
+  </div>
+}
+@if (integrity(); as d) {
+  <div class="integrity-banner" [class.unbalanced]="!d.balanced">
+    <div class="check">{{ d.balanced ? '✓' : '✗' }}</div>
+    <div>
+      <div class="ib-title">
+        {{ d.balanced ? 'Balanced' : 'Unbalanced' }} — total debits − total credits =
+        {{ formatMoney(balanceDeltaMinor()!, 'USD') }}
+      </div>
+      <div class="ib-sub">
+        Checked across all platform accounts · live, re-derived from the ledger event log
+      </div>
+    </div>
+  </div>
+}
+
+@if (accountsLoading()) {
+  <div class="ledger-accounts">
+    @for (row of skeletonRows; track $index) {
+      <div class="card"><div class="skeleton-bar" style="height: 60px"></div></div>
+    }
+  </div>
+}
+@if (accountsError()) {
+  <div class="banner error">
+    <span>{{ accountsError() }}</span>
+    <button type="button" (click)="loadAccounts()">Retry</button>
+  </div>
+}
+@if (!accountsLoading() && !accountsError()) {
+  <div class="ledger-accounts">
+    @for (account of accounts(); track account.label) {
+      <div class="card">
+        <div class="kind">
+          {{ account.kind }}
+          @if (account.isMocked) {
+            <span class="mocked-tag">mocked</span>
+          }
+        </div>
+        <div class="name">{{ account.label }}</div>
+        <div class="bal tab">{{ formatMoney(account.balanceMinor, 'USD') }}</div>
+      </div>
+    }
+  </div>
+}
+
+<div class="card panel">
+  <div class="panel-head">
+    <h3>Platform double-entry log</h3>
+    <span class="hint">across all merchants</span>
+  </div>
+
+  @if (entriesLoading()) {
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Transaction</th>
+            <th>Debit account</th>
+            <th>Credit account</th>
+            <th>Status</th>
+            <th class="amount">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of skeletonRows; track $index) {
+            <tr>
+              <td colspan="6"><div class="skeleton-bar" style="height: 18px"></div></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+  @if (entriesError()) {
+    <div class="banner error">
+      <span>{{ entriesError() }}</span>
+      <button type="button" (click)="loadEntries()">Retry</button>
+    </div>
+  }
+  @if (entriesEmpty()) {
+    <div class="empty-state">
+      <span>No ledger entries recorded yet.</span>
+    </div>
+  }
+  @if (!entriesLoading() && !entriesError() && !entriesEmpty()) {
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Transaction</th>
+            <th>Debit account</th>
+            <th>Credit account</th>
+            <th>Status</th>
+            <th class="amount">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (entry of entries(); track entry.id) {
+            <tr>
+              <td>{{ entry.postedAt | date: 'MMM d, h:mm:ss a' }}</td>
+              <td class="cell-id mono">{{ entry.transactionRef }}</td>
+              <td class="mono">{{ entry.debitAccountId.slice(0, 8) }}</td>
+              <td class="mono">{{ entry.creditAccountId.slice(0, 8) }}</td>
+              <td>{{ entry.status }}</td>
+              <td class="amount tab">{{ formatMoney(entry.amountMinor, 'USD') }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>

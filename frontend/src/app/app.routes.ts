@@ -1,6 +1,8 @@
 import { Routes } from '@angular/router';
 import { authGuard, merchantGuard, operatorGuard } from './core/guards/auth.guard';
 import { SignIn } from './features/auth/sign-in/sign-in';
+import { LedgerIntegrity } from './features/operator/ledger-integrity/ledger-integrity';
+import { SagaEvents } from './features/operator/saga-events/saga-events';
 import { CheckoutDemo } from './features/sandbox/checkout-demo/checkout-demo';
 import { TransactionDetail } from './features/transactions/transaction-detail/transaction-detail';
 import { Transactions } from './features/transactions/transactions';
@@ -52,7 +54,7 @@ export const routes: Routes = [
       },
       {
         path: 'operator/integrity',
-        component: PlaceholderView,
+        component: LedgerIntegrity,
         canActivate: [operatorGuard],
         data: { title: 'Ledger Integrity' },
       },
@@ -64,7 +66,7 @@ export const routes: Routes = [
       },
       {
         path: 'operator/saga-events',
-        component: PlaceholderView,
+        component: SagaEvents,
         canActivate: [operatorGuard],
         data: { title: 'Saga Events' },
       },

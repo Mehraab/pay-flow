@@ -16,14 +16,6 @@ export interface PaymentApiResponse {
   providerDisplayName: string | null;
 }
 
-export interface PageResponseApi<T> {
-  content: T[];
-  page: number;
-  size: number;
-  totalElements: number;
-  totalPages: number;
-}
-
 /** Wire shape of PaymentTimelineEvent (BE-05). */
 export interface PaymentTimelineEventApi {
   eventType: string;

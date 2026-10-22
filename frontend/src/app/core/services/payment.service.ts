@@ -3,14 +3,14 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
-import { CreatePaymentRequest, CreatePaymentResponse, PaymentEvent, PaymentViewEnriched } from '../models';
 import {
-  PageResponseApi,
-  PaymentApiResponse,
-  PaymentTimelineEventApi,
-  toPaymentEvent,
-  toPaymentViewEnriched,
-} from './payment-api.mapper';
+  CreatePaymentRequest,
+  CreatePaymentResponse,
+  PageResponse,
+  PaymentEvent,
+  PaymentViewEnriched,
+} from '../models';
+import { PaymentApiResponse, PaymentTimelineEventApi, toPaymentEvent, toPaymentViewEnriched } from './payment-api.mapper';
 
 export interface ListPaymentsFilter {
   status?: string;
@@ -38,7 +38,7 @@ export class PaymentService {
       .set('page', filter.page ?? 0)
       .set('size', filter.size ?? DEFAULT_LIST_SIZE);
     return this.http
-      .get<PageResponseApi<PaymentApiResponse>>(`${this.apiBase}/api/v1/payments`, { params })
+      .get<PageResponse<PaymentApiResponse>>(`${this.apiBase}/api/v1/payments`, { params })
       .pipe(map((res) => res.content.map(toPaymentViewEnriched)));
   }
 
