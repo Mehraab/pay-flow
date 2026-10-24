@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import dev.payflow.cqrs.bus.CommandBus;
+import dev.payflow.cqrs.exception.AggregateNotFoundException;
 import dev.payflow.paymentcommand.command.CapturePaymentCommand;
 import dev.payflow.paymentcommand.command.CreatePaymentCommand;
 import dev.payflow.paymentcommand.command.FailPaymentCommand;
@@ -129,5 +130,35 @@ class PaymentCommandControllerTest {
     mockMvc.perform(post("/payments/{id}/refund", id)).andExpect(status().isOk());
 
     verify(commandBus).dispatch(new RefundPaymentCommand(new PaymentId(id)));
+  }
+
+  @Test
+  void refundReturns409WhenThePaymentIsInAnInvalidStateForRefund() throws Exception {
+    var id = UUID.randomUUID();
+    when(commandBus.dispatch(new RefundPaymentCommand(new PaymentId(id))))
+        .thenThrow(new IllegalStateException("Cannot refund payment " + id + " in status CREATED"));
+
+    mockMvc
+        .perform(post("/payments/{id}/refund", id))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.error").value("Cannot refund payment " + id + " in status CREATED"))
+        .andExpect(jsonPath("$.status").value(409))
+        .andExpect(jsonPath("$.path").value("/payments/" + id + "/refund"));
+  }
+
+  @Test
+  void captureReturns404WhenThePaymentDoesNotExist() throws Exception {
+    var id = UUID.randomUUID();
+    when(commandBus.dispatch(any(CapturePaymentCommand.class)))
+        .thenThrow(new AggregateNotFoundException(new PaymentId(id)));
+
+    mockMvc
+        .perform(
+            post("/internal/payments/{id}/capture", id)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CaptureRequest("mock-ch-abc123"))))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.status").value(404))
+        .andExpect(jsonPath("$.path").value("/internal/payments/" + id + "/capture"));
   }
 }

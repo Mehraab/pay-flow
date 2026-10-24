@@ -170,7 +170,12 @@ class LedgerControllerTest {
     when(accountService.findPlatformAccount("nonexistent")).thenReturn(Optional.empty());
     when(accountService.findUniqueMerchantAccountByNameOrSlug("nonexistent")).thenReturn(Optional.empty());
 
-    mockMvc.perform(get("/accounts/{name}/balance", "nonexistent")).andExpect(status().isNotFound());
+    mockMvc
+        .perform(get("/accounts/{name}/balance", "nonexistent"))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.error").value("Account 'nonexistent' not found"))
+        .andExpect(jsonPath("$.status").value(404))
+        .andExpect(jsonPath("$.path").value("/accounts/nonexistent/balance"));
   }
 
   @Test
@@ -180,7 +185,10 @@ class LedgerControllerTest {
 
     mockMvc
         .perform(get("/accounts/{merchantId}/{name}/balance", merchantId, "merchant-payable"))
-        .andExpect(status().isNotFound());
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.error").value("Account 'merchant-payable' not found for merchant " + merchantId))
+        .andExpect(jsonPath("$.status").value(404))
+        .andExpect(jsonPath("$.path").value("/accounts/" + merchantId + "/merchant-payable/balance"));
   }
 
   @Test
@@ -291,6 +299,9 @@ class LedgerControllerTest {
 
     mockMvc
         .perform(get("/ledger/merchants/{merchantId}/entries", merchantId).header("X-Merchant-Id", otherMerchantId.toString()))
-        .andExpect(status().isForbidden());
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.error").value("X-Merchant-Id header does not match the requested merchantId"))
+        .andExpect(jsonPath("$.status").value(403))
+        .andExpect(jsonPath("$.path").value("/ledger/merchants/" + merchantId + "/entries"));
   }
 }

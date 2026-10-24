@@ -1,5 +1,6 @@
 package dev.payflow.providergateway.routing;
 
+import dev.payflow.common.dto.ErrorResponse;
 import java.util.List;
 import java.util.NoSuchElementException;
 import org.springframework.http.ResponseEntity;
@@ -25,12 +26,12 @@ public class ProviderRoutingController {
   }
 
   @PatchMapping("/operator/providers/{id}/routing")
-  public ResponseEntity<ProviderConfig> updateRouting(
-      @PathVariable String id, @RequestBody UpdateRoutingRequest request) {
+  public ResponseEntity<?> updateRouting(@PathVariable String id, @RequestBody UpdateRoutingRequest request) {
     try {
       return ResponseEntity.ok(routingService.updateRouting(id, request));
     } catch (NoSuchElementException e) {
-      return ResponseEntity.notFound().build();
+      return ResponseEntity.status(404)
+          .body(ErrorResponse.of("Provider " + id + " not found", 404, "/operator/providers/" + id));
     }
   }
 }

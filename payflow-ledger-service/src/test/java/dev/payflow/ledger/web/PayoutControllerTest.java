@@ -66,7 +66,9 @@ class PayoutControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new CreatePayoutRequest(merchantId))))
         .andExpect(status().isNotFound())
-        .andExpect(jsonPath("$.error").value("No Merchant Payable account for merchant " + merchantId));
+        .andExpect(jsonPath("$.error").value("No Merchant Payable account for merchant " + merchantId))
+        .andExpect(jsonPath("$.status").value(404))
+        .andExpect(jsonPath("$.path").value("/payouts"));
   }
 
   @Test
@@ -80,7 +82,9 @@ class PayoutControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new CreatePayoutRequest(merchantId))))
         .andExpect(status().isConflict())
-        .andExpect(jsonPath("$.error").value("No available balance for payout"));
+        .andExpect(jsonPath("$.error").value("No available balance for payout"))
+        .andExpect(jsonPath("$.status").value(409))
+        .andExpect(jsonPath("$.path").value("/payouts"));
   }
 
   @Test
@@ -103,7 +107,12 @@ class PayoutControllerTest {
     UUID payoutId = UUID.randomUUID();
     when(postingService.findPayoutById(payoutId)).thenReturn(Optional.empty());
 
-    mockMvc.perform(get("/payouts/{id}", payoutId)).andExpect(status().isNotFound());
+    mockMvc
+        .perform(get("/payouts/{id}", payoutId))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.error").value("Payout " + payoutId + " not found"))
+        .andExpect(jsonPath("$.status").value(404))
+        .andExpect(jsonPath("$.path").value("/payouts/" + payoutId));
   }
 
   @Test
@@ -164,7 +173,11 @@ class PayoutControllerTest {
 
   @Test
   void listPayoutsReturns400WhenNoMerchantIdIsResolvable() throws Exception {
-    mockMvc.perform(get("/payouts")).andExpect(status().isBadRequest());
+    mockMvc
+        .perform(get("/payouts"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.status").value(400))
+        .andExpect(jsonPath("$.path").value("/payouts"));
   }
 
   @Test
@@ -177,7 +190,10 @@ class PayoutControllerTest {
             get("/payouts")
                 .header("X-Merchant-Id", headerMerchantId.toString())
                 .param("merchantId", queryMerchantId.toString()))
-        .andExpect(status().isForbidden());
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.error").value("X-Merchant-Id header does not match the requested merchantId"))
+        .andExpect(jsonPath("$.status").value(403))
+        .andExpect(jsonPath("$.path").value("/payouts"));
   }
 
   @Test

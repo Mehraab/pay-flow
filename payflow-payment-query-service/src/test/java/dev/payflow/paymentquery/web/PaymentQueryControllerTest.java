@@ -48,7 +48,12 @@ class PaymentQueryControllerTest {
     UUID paymentId = UUID.randomUUID();
     when(store.findById(paymentId)).thenReturn(Optional.empty());
 
-    mockMvc.perform(get("/payments/{id}", paymentId)).andExpect(status().isNotFound());
+    mockMvc
+        .perform(get("/payments/{id}", paymentId))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.error").value("Payment " + paymentId + " not found"))
+        .andExpect(jsonPath("$.status").value(404))
+        .andExpect(jsonPath("$.path").value("/payments/" + paymentId));
   }
 
   @Test
@@ -144,6 +149,11 @@ class PaymentQueryControllerTest {
     UUID paymentId = UUID.randomUUID();
     when(store.findTimeline(paymentId)).thenReturn(Optional.empty());
 
-    mockMvc.perform(get("/payments/{id}/events", paymentId)).andExpect(status().isNotFound());
+    mockMvc
+        .perform(get("/payments/{id}/events", paymentId))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.error").value("Timeline for payment " + paymentId + " not found"))
+        .andExpect(jsonPath("$.status").value(404))
+        .andExpect(jsonPath("$.path").value("/payments/" + paymentId + "/events"));
   }
 }

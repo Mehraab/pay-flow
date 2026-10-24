@@ -1,7 +1,9 @@
 package dev.payflow.ledger.web;
 
+import dev.payflow.common.dto.ErrorResponse;
 import dev.payflow.ledger.payout.Payout;
 import dev.payflow.ledger.posting.LedgerPostingService;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
@@ -30,18 +32,27 @@ public class PayoutController {
 
   // Declared ahead of GET /payouts/{id} — Spring MVC must never mistake "merchants" for a payout id.
   @GetMapping("/payouts")
-  public ResponseEntity<PageResponse<PayoutResponse>> listPayouts(
+  public ResponseEntity<?> listPayouts(
       @RequestHeader(value = "X-Merchant-Id", required = false) String merchantIdHeader,
       @RequestParam(value = "merchantId", required = false) UUID queryMerchantId,
       @RequestParam(value = "page", defaultValue = "0") int page,
-      @RequestParam(value = "size", defaultValue = "20") int size) {
+      @RequestParam(value = "size", defaultValue = "20") int size,
+      HttpServletRequest request) {
     UUID targetMerchantId =
         queryMerchantId != null ? queryMerchantId : (merchantIdHeader != null ? UUID.fromString(merchantIdHeader) : null);
     if (targetMerchantId == null) {
-      return ResponseEntity.badRequest().build();
+      return ResponseEntity.badRequest()
+          .body(
+              ErrorResponse.of(
+                  "merchantId is required (via the 'merchantId' query param or the X-Merchant-Id header)",
+                  400,
+                  request.getRequestURI()));
     }
     if (merchantIdHeader != null && !targetMerchantId.toString().equalsIgnoreCase(merchantIdHeader)) {
-      return ResponseEntity.status(403).build();
+      return ResponseEntity.status(403)
+          .body(
+              ErrorResponse.of(
+                  "X-Merchant-Id header does not match the requested merchantId", 403, request.getRequestURI()));
     }
     List<PayoutResponse> content =
         postingService.findMerchantPayoutsPaged(targetMerchantId, page, size).stream().map(this::toResponse).toList();
@@ -51,18 +62,24 @@ public class PayoutController {
   }
 
   @GetMapping("/payouts/merchants/{merchantId}")
-  public ResponseEntity<PageResponse<PayoutResponse>> listPayoutsForMerchant(
+  public ResponseEntity<?> listPayoutsForMerchant(
       @RequestHeader(value = "X-Merchant-Id", required = false) String merchantIdHeader,
       @PathVariable UUID merchantId,
       @RequestParam(value = "page", defaultValue = "0") int page,
-      @RequestParam(value = "size", defaultValue = "20") int size) {
-    return listPayouts(merchantIdHeader, merchantId, page, size);
+      @RequestParam(value = "size", defaultValue = "20") int size,
+      HttpServletRequest request) {
+    return listPayouts(merchantIdHeader, merchantId, page, size, request);
   }
 
   @GetMapping("/payouts/{id}")
-  public ResponseEntity<PayoutResponse> getPayout(@PathVariable UUID id) {
-    return postingService.findPayoutById(id).map(this::toResponse).map(ResponseEntity::ok).orElseGet(
-        () -> ResponseEntity.notFound().build());
+  public ResponseEntity<?> getPayout(@PathVariable UUID id, HttpServletRequest request) {
+    return postingService
+        .findPayoutById(id)
+        .<ResponseEntity<?>>map(payout -> ResponseEntity.ok(toResponse(payout)))
+        .orElseGet(
+            () ->
+                ResponseEntity.status(404)
+                    .body(ErrorResponse.of("Payout " + id + " not found", 404, request.getRequestURI())));
   }
 
   @PostMapping("/payouts/sweep")
