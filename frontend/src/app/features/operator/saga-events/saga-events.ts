@@ -4,6 +4,7 @@ import { SagaEventResponse } from '../../../core/models';
 import { OperatorService } from '../../../core/services/operator.service';
 import { initialViewState, ViewState } from '../../../shared/state/view-state';
 import { formatDuration } from '../../../shared/utils/duration';
+import { extractErrorMessage } from '../../../shared/utils/http-error';
 import { StatusPillVariant } from '../../../shared/utils/payment-status';
 
 // Temporal's WorkflowExecutionStatus, as mapped by SagaEventsService.mapStatus — a
@@ -52,8 +53,12 @@ export class SagaEvents {
     this.state.set(initialViewState());
     this.operatorService.listSagaEvents().subscribe({
       next: (data) => this.state.set({ loading: false, error: null, data }),
-      error: () =>
-        this.state.set({ loading: false, error: "Couldn't load saga events — retry", data: null }),
+      error: (err) =>
+        this.state.set({
+          loading: false,
+          error: extractErrorMessage(err, "Couldn't load saga events — retry"),
+          data: null,
+        }),
     });
   }
 }

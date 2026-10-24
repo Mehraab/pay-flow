@@ -3,6 +3,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { WebhookDeliveryResponse } from '../../../core/models';
 import { OperatorService } from '../../../core/services/operator.service';
 import { initialViewState, ViewState } from '../../../shared/state/view-state';
+import { extractErrorMessage } from '../../../shared/utils/http-error';
 
 @Component({
   imports: [DatePipe],
@@ -37,10 +38,10 @@ export class WebhookDlq {
     this.state.set(initialViewState());
     this.operatorService.listWebhookDlq().subscribe({
       next: (data) => this.state.set({ loading: false, error: null, data }),
-      error: () =>
+      error: (err) =>
         this.state.set({
           loading: false,
-          error: "Couldn't load dead-lettered deliveries — retry",
+          error: extractErrorMessage(err, "Couldn't load dead-lettered deliveries — retry"),
           data: null,
         }),
     });

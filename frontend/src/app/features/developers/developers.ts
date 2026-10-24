@@ -3,6 +3,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { WebhookDeliveryResponse } from '../../core/models';
 import { OperatorService } from '../../core/services/operator.service';
 import { initialViewState, ViewState } from '../../shared/state/view-state';
+import { extractErrorMessage } from '../../shared/utils/http-error';
 import { StatusPillVariant } from '../../shared/utils/payment-status';
 
 // Real vocabulary: payflow-notification-service's DeliveryStatus (PENDING/DELIVERED/
@@ -68,10 +69,10 @@ export class Developers {
     this.deliveriesState.set(initialViewState());
     this.operatorService.listWebhookDeliveries().subscribe({
       next: (data) => this.deliveriesState.set({ loading: false, error: null, data }),
-      error: () =>
+      error: (err) =>
         this.deliveriesState.set({
           loading: false,
-          error: "Couldn't load webhook deliveries — retry",
+          error: extractErrorMessage(err, "Couldn't load webhook deliveries — retry"),
           data: null,
         }),
     });

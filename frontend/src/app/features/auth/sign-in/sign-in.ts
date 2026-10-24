@@ -2,6 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { Role } from '../../../core/models';
+import { extractErrorMessage } from '../../../shared/utils/http-error';
 
 @Component({
   imports: [],
@@ -35,9 +36,11 @@ export class SignIn {
         this.loading.set(false);
         this.router.navigateByUrl('/overview');
       },
-      error: () => {
+      error: (err) => {
         this.loading.set(false);
-        this.error.set("Couldn't sign in — check the Gateway is running and try again.");
+        this.error.set(
+          extractErrorMessage(err, "Couldn't sign in — check the Gateway is running and try again."),
+        );
       },
     });
   }

@@ -6,6 +6,7 @@ import { AuthService } from '../../../core/services/auth.service';
 import { PaymentService } from '../../../core/services/payment.service';
 import { Currency, PaymentViewEnriched } from '../../../core/models';
 import { ViewState } from '../../../shared/state/view-state';
+import { extractErrorMessage } from '../../../shared/utils/http-error';
 import { formatMoney } from '../../../shared/utils/money';
 import { statusLabel, statusPillVariant } from '../../../shared/utils/payment-status';
 
@@ -111,10 +112,10 @@ export class CheckoutDemo {
           this.pollState.set({ loading: true, error: null, data: null });
           this.pollSettlement(res.paymentId, 1);
         },
-        error: () => {
+        error: (err) => {
           this.submitState.set({
             loading: false,
-            error: "Couldn't submit the payment — check the form and try again.",
+            error: extractErrorMessage(err, "Couldn't submit the payment — check the form and try again."),
             data: null,
           });
         },
@@ -144,10 +145,10 @@ export class CheckoutDemo {
           this.pollState.set({ loading: true, error: null, data: payment });
           this.pollSettlement(paymentId, attempt + 1);
         },
-        error: () => {
+        error: (err) => {
           this.pollState.set({
             loading: false,
-            error: "Couldn't check the payment's status — view it in Transactions instead.",
+            error: extractErrorMessage(err, "Couldn't check the payment's status — view it in Transactions instead."),
             data: null,
           });
         },

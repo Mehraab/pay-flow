@@ -2,6 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { ProviderConfig } from '../../../core/models';
 import { OperatorService } from '../../../core/services/operator.service';
 import { initialViewState, ViewState } from '../../../shared/state/view-state';
+import { extractErrorMessage } from '../../../shared/utils/http-error';
 import { StatusPillVariant } from '../../../shared/utils/payment-status';
 
 const HEALTH_VARIANT_BY_STATUS: Record<string, StatusPillVariant> = {
@@ -55,8 +56,12 @@ export class ProviderRouting {
     this.state.set(initialViewState());
     this.operatorService.listProviders().subscribe({
       next: (data) => this.state.set({ loading: false, error: null, data }),
-      error: () =>
-        this.state.set({ loading: false, error: "Couldn't load providers — retry", data: null }),
+      error: (err) =>
+        this.state.set({
+          loading: false,
+          error: extractErrorMessage(err, "Couldn't load providers — retry"),
+          data: null,
+        }),
     });
   }
 
@@ -74,8 +79,11 @@ export class ProviderRouting {
         }));
         this.clearPending(provider.id);
       },
-      error: () => {
-        this.toggleErrors.update((errs) => ({ ...errs, [provider.id]: "Couldn't update — try again" }));
+      error: (err) => {
+        this.toggleErrors.update((errs) => ({
+          ...errs,
+          [provider.id]: extractErrorMessage(err, "Couldn't update — try again"),
+        }));
         this.clearPending(provider.id);
       },
     });

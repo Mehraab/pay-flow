@@ -6,6 +6,7 @@ import { LedgerEntryResponse, MerchantBalances, PayoutResponse } from '../../cor
 import { AuthService } from '../../core/services/auth.service';
 import { LedgerService } from '../../core/services/ledger.service';
 import { initialViewState, ViewState } from '../../shared/state/view-state';
+import { extractErrorMessage } from '../../shared/utils/http-error';
 import { formatMoney } from '../../shared/utils/money';
 
 const PAYOUT_POLL_INTERVAL_MS = 2000;
@@ -63,8 +64,12 @@ export class Ledger {
     this.balancesState.set(initialViewState());
     this.ledgerService.getMerchantBalances(merchantId).subscribe({
       next: (data) => this.balancesState.set({ loading: false, error: null, data }),
-      error: () =>
-        this.balancesState.set({ loading: false, error: "Couldn't load balances — retry", data: null }),
+      error: (err) =>
+        this.balancesState.set({
+          loading: false,
+          error: extractErrorMessage(err, "Couldn't load balances — retry"),
+          data: null,
+        }),
     });
   }
 
@@ -74,8 +79,12 @@ export class Ledger {
     this.entriesState.set(initialViewState());
     this.ledgerService.getMerchantLedgerEntries(merchantId).subscribe({
       next: (data) => this.entriesState.set({ loading: false, error: null, data }),
-      error: () =>
-        this.entriesState.set({ loading: false, error: "Couldn't load the ledger log — retry", data: null }),
+      error: (err) =>
+        this.entriesState.set({
+          loading: false,
+          error: extractErrorMessage(err, "Couldn't load the ledger log — retry"),
+          data: null,
+        }),
     });
   }
 
@@ -89,8 +98,12 @@ export class Ledger {
         this.payoutState.set({ loading: true, error: null, data: payout });
         this.pollPayout(payout.id, 1);
       },
-      error: () =>
-        this.payoutState.set({ loading: false, error: "Couldn't request a payout — try again.", data: null }),
+      error: (err) =>
+        this.payoutState.set({
+          loading: false,
+          error: extractErrorMessage(err, "Couldn't request a payout — try again."),
+          data: null,
+        }),
     });
   }
 
@@ -115,10 +128,10 @@ export class Ledger {
           this.payoutState.set({ loading: true, error: null, data: payout });
           this.pollPayout(id, attempt + 1);
         },
-        error: () =>
+        error: (err) =>
           this.payoutState.set({
             loading: false,
-            error: "Couldn't check the payout's status — refresh to check.",
+            error: extractErrorMessage(err, "Couldn't check the payout's status — refresh to check."),
             data: null,
           }),
       });

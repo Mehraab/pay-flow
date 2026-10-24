@@ -3,6 +3,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { LedgerEntryResponse, LedgerIntegrityResponse, PlatformAccountCard } from '../../../core/models';
 import { LedgerService } from '../../../core/services/ledger.service';
 import { initialViewState, ViewState } from '../../../shared/state/view-state';
+import { extractErrorMessage } from '../../../shared/utils/http-error';
 import { formatMoney } from '../../../shared/utils/money';
 
 @Component({
@@ -53,10 +54,10 @@ export class LedgerIntegrity {
     this.integrityState.set(initialViewState());
     this.ledgerService.getLedgerIntegrity().subscribe({
       next: (data) => this.integrityState.set({ loading: false, error: null, data }),
-      error: () =>
+      error: (err) =>
         this.integrityState.set({
           loading: false,
-          error: "Couldn't load ledger integrity — retry",
+          error: extractErrorMessage(err, "Couldn't load ledger integrity — retry"),
           data: null,
         }),
     });
@@ -66,10 +67,10 @@ export class LedgerIntegrity {
     this.accountsState.set(initialViewState());
     this.ledgerService.getPlatformAccountCards().subscribe({
       next: (data) => this.accountsState.set({ loading: false, error: null, data }),
-      error: () =>
+      error: (err) =>
         this.accountsState.set({
           loading: false,
-          error: "Couldn't load platform account balances — retry",
+          error: extractErrorMessage(err, "Couldn't load platform account balances — retry"),
           data: null,
         }),
     });
@@ -79,10 +80,10 @@ export class LedgerIntegrity {
     this.entriesState.set(initialViewState());
     this.ledgerService.getLedgerEntries().subscribe({
       next: (data) => this.entriesState.set({ loading: false, error: null, data }),
-      error: () =>
+      error: (err) =>
         this.entriesState.set({
           loading: false,
-          error: "Couldn't load the double-entry log — retry",
+          error: extractErrorMessage(err, "Couldn't load the double-entry log — retry"),
           data: null,
         }),
     });

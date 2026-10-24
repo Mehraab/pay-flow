@@ -4,6 +4,7 @@ import { PaymentViewEnriched, PaymentsSummary } from '../../core/models';
 import { AuthService } from '../../core/services/auth.service';
 import { PaymentService } from '../../core/services/payment.service';
 import { initialViewState, ViewState } from '../../shared/state/view-state';
+import { extractErrorMessage } from '../../shared/utils/http-error';
 import { formatMoney } from '../../shared/utils/money';
 import { statusLabel, statusPillVariant } from '../../shared/utils/payment-status';
 import { buildSparkline } from '../../shared/utils/sparkline';
@@ -66,8 +67,12 @@ export class Overview {
     this.summaryState.set(initialViewState());
     this.paymentService.getSummary(SUMMARY_DAYS).subscribe({
       next: (data) => this.summaryState.set({ loading: false, error: null, data }),
-      error: () =>
-        this.summaryState.set({ loading: false, error: 'Analytics unavailable', data: null }),
+      error: (err) =>
+        this.summaryState.set({
+          loading: false,
+          error: extractErrorMessage(err, 'Analytics unavailable'),
+          data: null,
+        }),
     });
   }
 
@@ -75,10 +80,10 @@ export class Overview {
     this.recentState.set(initialViewState());
     this.paymentService.listPayments({ page: 0, size: 6 }).subscribe({
       next: (data) => this.recentState.set({ loading: false, error: null, data }),
-      error: () =>
+      error: (err) =>
         this.recentState.set({
           loading: false,
-          error: "Couldn't load recent transactions — retry",
+          error: extractErrorMessage(err, "Couldn't load recent transactions — retry"),
           data: null,
         }),
     });
