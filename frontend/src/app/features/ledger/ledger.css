@@ -41,3 +41,11 @@
   margin-bottom: 14px;
   flex-wrap: wrap;
 }
+
+/* .panel-head's own space-between (h3 vs. .hint) only has room to work with once it
+   stretches to fill the row — as a bare flex item here it shrink-wraps its content,
+   so the heading and hint render with no gap at all. */
+.ledger-head-row .panel-head {
+  flex: 1;
+  min-width: 0;
+}
