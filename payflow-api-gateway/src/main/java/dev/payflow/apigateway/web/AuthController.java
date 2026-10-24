@@ -25,7 +25,7 @@ public class AuthController {
   @PostMapping("/token")
   public ResponseEntity<?> token(@RequestBody TokenRequest request) {
     if (!"MERCHANT".equals(request.role()) && !"OPERATOR".equals(request.role())) {
-      return ResponseEntity.badRequest().body(ErrorResponse.of("role must be MERCHANT or OPERATOR", 400, "/auth/token"));
+      return ResponseEntity.badRequest().body(ErrorResponse.of("role must be MERCHANT or OPERATOR", 400));
     }
     boolean isMerchant = "MERCHANT".equals(request.role());
     UUID merchantId = isMerchant ? (request.merchantId() != null ? request.merchantId() : UUID.randomUUID()) : null;
@@ -37,7 +37,7 @@ public class AuthController {
     try {
       return ResponseEntity.ok(authService.refresh(request.refreshToken()));
     } catch (InvalidTokenException e) {
-      return ResponseEntity.status(401).body(ErrorResponse.of(e.getMessage(), 401, "/auth/refresh"));
+      return ResponseEntity.status(401).body(ErrorResponse.of(e.getMessage(), 401));
     }
   }
 

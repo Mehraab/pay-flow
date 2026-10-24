@@ -67,8 +67,7 @@ class PayoutControllerTest {
                 .content(objectMapper.writeValueAsString(new CreatePayoutRequest(merchantId))))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.error").value("No Merchant Payable account for merchant " + merchantId))
-        .andExpect(jsonPath("$.status").value(404))
-        .andExpect(jsonPath("$.path").value("/payouts"));
+        .andExpect(jsonPath("$.status").value(404));
   }
 
   @Test
@@ -83,8 +82,7 @@ class PayoutControllerTest {
                 .content(objectMapper.writeValueAsString(new CreatePayoutRequest(merchantId))))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.error").value("No available balance for payout"))
-        .andExpect(jsonPath("$.status").value(409))
-        .andExpect(jsonPath("$.path").value("/payouts"));
+        .andExpect(jsonPath("$.status").value(409));
   }
 
   @Test
@@ -111,8 +109,7 @@ class PayoutControllerTest {
         .perform(get("/payouts/{id}", payoutId))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.error").value("Payout " + payoutId + " not found"))
-        .andExpect(jsonPath("$.status").value(404))
-        .andExpect(jsonPath("$.path").value("/payouts/" + payoutId));
+        .andExpect(jsonPath("$.status").value(404));
   }
 
   @Test
@@ -176,8 +173,7 @@ class PayoutControllerTest {
     mockMvc
         .perform(get("/payouts"))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.status").value(400))
-        .andExpect(jsonPath("$.path").value("/payouts"));
+        .andExpect(jsonPath("$.status").value(400));
   }
 
   @Test
@@ -192,8 +188,7 @@ class PayoutControllerTest {
                 .param("merchantId", queryMerchantId.toString()))
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.error").value("X-Merchant-Id header does not match the requested merchantId"))
-        .andExpect(jsonPath("$.status").value(403))
-        .andExpect(jsonPath("$.path").value("/payouts"));
+        .andExpect(jsonPath("$.status").value(403));
   }
 
   @Test

@@ -75,7 +75,6 @@ class JwtAuthenticationFilterTest {
     ErrorResponse error = objectMapper.readValue(responseBody.toString(), ErrorResponse.class);
     assertThat(error.error()).isEqualTo("Missing or invalid authorization token");
     assertThat(error.status()).isEqualTo(401);
-    assertThat(error.path()).isEqualTo("/api/v1/payments/abc-123");
   }
 
   @Test
@@ -93,7 +92,6 @@ class JwtAuthenticationFilterTest {
     ErrorResponse error = objectMapper.readValue(responseBody.toString(), ErrorResponse.class);
     assertThat(error.error()).isEqualTo("Forbidden: Requires ROLE_OPERATOR");
     assertThat(error.status()).isEqualTo(403);
-    assertThat(error.path()).isEqualTo("/operator/ledger/integrity");
   }
 
   @Test

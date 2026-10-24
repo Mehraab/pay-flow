@@ -93,7 +93,6 @@ class NotificationControllerTest {
     mockMvc
         .perform(get("/webhooks/deliveries"))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.status").value(400))
-        .andExpect(jsonPath("$.path").value("/webhooks/deliveries"));
+        .andExpect(jsonPath("$.status").value(400));
   }
 }

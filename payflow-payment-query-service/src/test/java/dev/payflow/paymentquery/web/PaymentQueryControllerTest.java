@@ -52,8 +52,7 @@ class PaymentQueryControllerTest {
         .perform(get("/payments/{id}", paymentId))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.error").value("Payment " + paymentId + " not found"))
-        .andExpect(jsonPath("$.status").value(404))
-        .andExpect(jsonPath("$.path").value("/payments/" + paymentId));
+        .andExpect(jsonPath("$.status").value(404));
   }
 
   @Test
@@ -153,7 +152,6 @@ class PaymentQueryControllerTest {
         .perform(get("/payments/{id}/events", paymentId))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.error").value("Timeline for payment " + paymentId + " not found"))
-        .andExpect(jsonPath("$.status").value(404))
-        .andExpect(jsonPath("$.path").value("/payments/" + paymentId + "/events"));
+        .andExpect(jsonPath("$.status").value(404));
   }
 }

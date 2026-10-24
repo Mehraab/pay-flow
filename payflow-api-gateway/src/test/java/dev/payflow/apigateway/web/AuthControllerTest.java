@@ -37,8 +37,7 @@ class AuthControllerTest {
                 .content(objectMapper.writeValueAsString(new TokenRequest("ADMIN", null))))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.error").value("role must be MERCHANT or OPERATOR"))
-        .andExpect(jsonPath("$.status").value(400))
-        .andExpect(jsonPath("$.path").value("/auth/token"));
+        .andExpect(jsonPath("$.status").value(400));
   }
 
   @Test
@@ -67,8 +66,7 @@ class AuthControllerTest {
                 .content(objectMapper.writeValueAsString(new RefreshTokenRequest("bad-token"))))
         .andExpect(status().isUnauthorized())
         .andExpect(jsonPath("$.error").value("Refresh token is invalid or expired"))
-        .andExpect(jsonPath("$.status").value(401))
-        .andExpect(jsonPath("$.path").value("/auth/refresh"));
+        .andExpect(jsonPath("$.status").value(401));
   }
 
   @Test

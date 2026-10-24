@@ -2,7 +2,6 @@ package dev.payflow.paymentcommand.web;
 
 import dev.payflow.common.dto.ErrorResponse;
 import dev.payflow.cqrs.exception.AggregateNotFoundException;
-import jakarta.servlet.http.HttpServletRequest;
 import java.util.NoSuchElementException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -28,15 +27,12 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class PaymentCommandExceptionHandler {
 
   @ExceptionHandler(IllegalStateException.class)
-  public ResponseEntity<ErrorResponse> handleInvalidStateTransition(
-      IllegalStateException e, HttpServletRequest request) {
-    return ResponseEntity.status(HttpStatus.CONFLICT)
-        .body(ErrorResponse.of(e.getMessage(), HttpStatus.CONFLICT.value(), request.getRequestURI()));
+  public ResponseEntity<ErrorResponse> handleInvalidStateTransition(IllegalStateException e) {
+    return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.of(e.getMessage(), HttpStatus.CONFLICT.value()));
   }
 
   @ExceptionHandler({AggregateNotFoundException.class, NoSuchElementException.class})
-  public ResponseEntity<ErrorResponse> handleNotFound(RuntimeException e, HttpServletRequest request) {
-    return ResponseEntity.status(HttpStatus.NOT_FOUND)
-        .body(ErrorResponse.of(e.getMessage(), HttpStatus.NOT_FOUND.value(), request.getRequestURI()));
+  public ResponseEntity<ErrorResponse> handleNotFound(RuntimeException e) {
+    return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse.of(e.getMessage(), HttpStatus.NOT_FOUND.value()));
   }
 }

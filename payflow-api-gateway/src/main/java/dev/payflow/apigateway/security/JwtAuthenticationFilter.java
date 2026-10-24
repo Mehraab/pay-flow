@@ -56,7 +56,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
       throws ServletException, IOException {
     String header = request.getHeader("Authorization");
     if (header == null || !header.startsWith("Bearer ")) {
-      writeError(request, response, HttpServletResponse.SC_UNAUTHORIZED, "Missing or invalid authorization token");
+      writeError(response, HttpServletResponse.SC_UNAUTHORIZED, "Missing or invalid authorization token");
       return;
     }
 
@@ -64,13 +64,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     try {
       claims = jwtTokenService.parseAndValidateAccessToken(header.substring("Bearer ".length()));
     } catch (RuntimeException e) {
-      writeError(request, response, HttpServletResponse.SC_UNAUTHORIZED, "Missing or invalid authorization token");
+      writeError(response, HttpServletResponse.SC_UNAUTHORIZED, "Missing or invalid authorization token");
       return;
     }
 
     String role = claims.get(ROLE_CLAIM, String.class);
     if (request.getRequestURI().startsWith("/operator/") && !ROLE_OPERATOR.equals(role)) {
-      writeError(request, response, HttpServletResponse.SC_FORBIDDEN, "Forbidden: Requires ROLE_OPERATOR");
+      writeError(response, HttpServletResponse.SC_FORBIDDEN, "Forbidden: Requires ROLE_OPERATOR");
       return;
     }
 
@@ -83,13 +83,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     filterChain.doFilter(request, response);
   }
 
-  private void writeError(HttpServletRequest request, HttpServletResponse response, int status, String message)
-      throws IOException {
+  private void writeError(HttpServletResponse response, int status, String message) throws IOException {
     response.setStatus(status);
     response.setContentType("application/json");
-    response
-        .getWriter()
-        .write(objectMapper.writeValueAsString(ErrorResponse.of(message, status, request.getRequestURI())));
+    response.getWriter().write(objectMapper.writeValueAsString(ErrorResponse.of(message, status)));
   }
 
   /** Makes the merchant id resolved from the token's claims visible as {@code X-Merchant-Id}. */

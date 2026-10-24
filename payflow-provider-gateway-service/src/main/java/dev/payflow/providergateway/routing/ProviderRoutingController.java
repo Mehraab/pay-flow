@@ -30,8 +30,7 @@ public class ProviderRoutingController {
     try {
       return ResponseEntity.ok(routingService.updateRouting(id, request));
     } catch (NoSuchElementException e) {
-      return ResponseEntity.status(404)
-          .body(ErrorResponse.of("Provider " + id + " not found", 404, "/operator/providers/" + id));
+      return ResponseEntity.status(404).body(ErrorResponse.of("Provider " + id + " not found", 404));
     }
   }
 }

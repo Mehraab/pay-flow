@@ -73,7 +73,6 @@ class ProviderRoutingControllerTest {
                 .content(objectMapper.writeValueAsString(new UpdateRoutingRequest(1, true))))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.error").value("Provider unknown not found"))
-        .andExpect(jsonPath("$.status").value(404))
-        .andExpect(jsonPath("$.path").value("/operator/providers/unknown"));
+        .andExpect(jsonPath("$.status").value(404));
   }
 }

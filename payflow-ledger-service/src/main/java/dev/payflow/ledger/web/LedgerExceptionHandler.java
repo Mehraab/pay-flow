@@ -3,7 +3,6 @@ package dev.payflow.ledger.web;
 import dev.payflow.common.dto.ErrorResponse;
 import dev.payflow.ledger.payout.MerchantPayableAccountNotFoundException;
 import dev.payflow.ledger.payout.NoPayoutBalanceAvailableException;
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -31,16 +30,12 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class LedgerExceptionHandler {
 
   @ExceptionHandler(MerchantPayableAccountNotFoundException.class)
-  public ResponseEntity<ErrorResponse> handleAccountNotFound(
-      MerchantPayableAccountNotFoundException e, HttpServletRequest request) {
-    return ResponseEntity.status(HttpStatus.NOT_FOUND)
-        .body(ErrorResponse.of(e.getMessage(), HttpStatus.NOT_FOUND.value(), request.getRequestURI()));
+  public ResponseEntity<ErrorResponse> handleAccountNotFound(MerchantPayableAccountNotFoundException e) {
+    return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse.of(e.getMessage(), HttpStatus.NOT_FOUND.value()));
   }
 
   @ExceptionHandler(NoPayoutBalanceAvailableException.class)
-  public ResponseEntity<ErrorResponse> handleNoBalanceAvailable(
-      NoPayoutBalanceAvailableException e, HttpServletRequest request) {
-    return ResponseEntity.status(HttpStatus.CONFLICT)
-        .body(ErrorResponse.of(e.getMessage(), HttpStatus.CONFLICT.value(), request.getRequestURI()));
+  public ResponseEntity<ErrorResponse> handleNoBalanceAvailable(NoPayoutBalanceAvailableException e) {
+    return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.of(e.getMessage(), HttpStatus.CONFLICT.value()));
   }
 }

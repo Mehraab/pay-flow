@@ -1,7 +1,6 @@
 package dev.payflow.notification.web;
 
 import dev.payflow.common.dto.ErrorResponse;
-import jakarta.servlet.http.HttpServletRequest;
 import java.util.NoSuchElementException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,15 +18,13 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class NotificationExceptionHandler {
 
   @ExceptionHandler(MissingRequestHeaderException.class)
-  public ResponseEntity<ErrorResponse> handleMissingHeader(
-      MissingRequestHeaderException e, HttpServletRequest request) {
+  public ResponseEntity<ErrorResponse> handleMissingHeader(MissingRequestHeaderException e) {
     return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-        .body(ErrorResponse.of(e.getMessage(), HttpStatus.BAD_REQUEST.value(), request.getRequestURI()));
+        .body(ErrorResponse.of(e.getMessage(), HttpStatus.BAD_REQUEST.value()));
   }
 
   @ExceptionHandler(NoSuchElementException.class)
-  public ResponseEntity<ErrorResponse> handleNotFound(NoSuchElementException e, HttpServletRequest request) {
-    return ResponseEntity.status(HttpStatus.NOT_FOUND)
-        .body(ErrorResponse.of(e.getMessage(), HttpStatus.NOT_FOUND.value(), request.getRequestURI()));
+  public ResponseEntity<ErrorResponse> handleNotFound(NoSuchElementException e) {
+    return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse.of(e.getMessage(), HttpStatus.NOT_FOUND.value()));
   }
 }

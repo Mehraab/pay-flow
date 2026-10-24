@@ -45,10 +45,7 @@ public class PaymentQueryController {
     return store
         .findById(id)
         .<ResponseEntity<?>>map(ResponseEntity::ok)
-        .orElseGet(
-            () ->
-                ResponseEntity.status(404)
-                    .body(ErrorResponse.of("Payment " + id + " not found", 404, "/payments/" + id)));
+        .orElseGet(() -> ResponseEntity.status(404).body(ErrorResponse.of("Payment " + id + " not found", 404)));
   }
 
   @GetMapping("/payments/{id}/events")
@@ -59,8 +56,6 @@ public class PaymentQueryController {
         .orElseGet(
             () ->
                 ResponseEntity.status(404)
-                    .body(
-                        ErrorResponse.of(
-                            "Timeline for payment " + id + " not found", 404, "/payments/" + id + "/events")));
+                    .body(ErrorResponse.of("Timeline for payment " + id + " not found", 404)));
   }
 }

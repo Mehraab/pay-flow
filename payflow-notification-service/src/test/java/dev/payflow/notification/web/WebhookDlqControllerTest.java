@@ -87,7 +87,6 @@ class WebhookDlqControllerTest {
         .perform(post("/operator/webhooks/dlq/{id}/retry", id))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.error").value("No webhook delivery with id '" + id + "'"))
-        .andExpect(jsonPath("$.status").value(404))
-        .andExpect(jsonPath("$.path").value("/operator/webhooks/dlq/" + id + "/retry"));
+        .andExpect(jsonPath("$.status").value(404));
   }
 }

@@ -142,8 +142,7 @@ class PaymentCommandControllerTest {
         .perform(post("/payments/{id}/refund", id))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.error").value("Cannot refund payment " + id + " in status CREATED"))
-        .andExpect(jsonPath("$.status").value(409))
-        .andExpect(jsonPath("$.path").value("/payments/" + id + "/refund"));
+        .andExpect(jsonPath("$.status").value(409));
   }
 
   @Test
@@ -158,7 +157,6 @@ class PaymentCommandControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new CaptureRequest("mock-ch-abc123"))))
         .andExpect(status().isNotFound())
-        .andExpect(jsonPath("$.status").value(404))
-        .andExpect(jsonPath("$.path").value("/internal/payments/" + id + "/capture"));
+        .andExpect(jsonPath("$.status").value(404));
   }
 }

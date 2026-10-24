@@ -174,8 +174,7 @@ class LedgerControllerTest {
         .perform(get("/accounts/{name}/balance", "nonexistent"))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.error").value("Account 'nonexistent' not found"))
-        .andExpect(jsonPath("$.status").value(404))
-        .andExpect(jsonPath("$.path").value("/accounts/nonexistent/balance"));
+        .andExpect(jsonPath("$.status").value(404));
   }
 
   @Test
@@ -187,8 +186,7 @@ class LedgerControllerTest {
         .perform(get("/accounts/{merchantId}/{name}/balance", merchantId, "merchant-payable"))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.error").value("Account 'merchant-payable' not found for merchant " + merchantId))
-        .andExpect(jsonPath("$.status").value(404))
-        .andExpect(jsonPath("$.path").value("/accounts/" + merchantId + "/merchant-payable/balance"));
+        .andExpect(jsonPath("$.status").value(404));
   }
 
   @Test
@@ -301,7 +299,6 @@ class LedgerControllerTest {
         .perform(get("/ledger/merchants/{merchantId}/entries", merchantId).header("X-Merchant-Id", otherMerchantId.toString()))
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.error").value("X-Merchant-Id header does not match the requested merchantId"))
-        .andExpect(jsonPath("$.status").value(403))
-        .andExpect(jsonPath("$.path").value("/ledger/merchants/" + merchantId + "/entries"));
+        .andExpect(jsonPath("$.status").value(403));
   }
 }
