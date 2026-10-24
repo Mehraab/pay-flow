@@ -2,6 +2,7 @@ package dev.payflow.apigateway.web;
 
 import dev.payflow.apigateway.security.AuthService;
 import dev.payflow.apigateway.security.InvalidTokenException;
+import dev.payflow.common.dto.ErrorResponse;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
@@ -24,7 +25,7 @@ public class AuthController {
   @PostMapping("/token")
   public ResponseEntity<?> token(@RequestBody TokenRequest request) {
     if (!"MERCHANT".equals(request.role()) && !"OPERATOR".equals(request.role())) {
-      return ResponseEntity.badRequest().body(Map.of("error", "role must be MERCHANT or OPERATOR"));
+      return ResponseEntity.badRequest().body(ErrorResponse.of("role must be MERCHANT or OPERATOR", 400));
     }
     boolean isMerchant = "MERCHANT".equals(request.role());
     UUID merchantId = isMerchant ? (request.merchantId() != null ? request.merchantId() : UUID.randomUUID()) : null;
@@ -36,7 +37,7 @@ public class AuthController {
     try {
       return ResponseEntity.ok(authService.refresh(request.refreshToken()));
     } catch (InvalidTokenException e) {
-      return ResponseEntity.status(401).body(Map.of("error", e.getMessage()));
+      return ResponseEntity.status(401).body(ErrorResponse.of(e.getMessage(), 401));
     }
   }
 

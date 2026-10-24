@@ -1,0 +1,134 @@
+@if (summaryLoading()) {
+  <div class="grid-stats">
+    @for (row of skeletonTiles; track $index) {
+      <div class="card stat"><div class="skeleton-bar" style="height: 50px"></div></div>
+    }
+  </div>
+  <div class="card panel">
+    <div class="skeleton-bar" style="height: 200px"></div>
+  </div>
+}
+
+@if (summaryError()) {
+  <div class="banner error">
+    <span>{{ summaryError() }}</span>
+    <button type="button" (click)="loadSummary()">Retry</button>
+  </div>
+}
+
+@if (summarySuccess()) {
+  @let s = summary()!;
+
+  <div class="grid-stats">
+    <div class="card stat">
+      <div class="label">Net volume ({{ summaryDays }}d)</div>
+      <div class="value tab">{{ formatMoney(s.netVolumeMinor, s.currency) }}</div>
+      <div class="delta" [class.up]="s.volumeDeltaPct >= 0" [class.down]="s.volumeDeltaPct < 0">
+        {{ s.volumeDeltaPct >= 0 ? '↑' : '↓' }} {{ Math.abs(s.volumeDeltaPct) }}% vs. prior period
+      </div>
+    </div>
+    <div class="card stat">
+      <div class="label">Success rate</div>
+      <div class="value tab">{{ s.successRatePct }}%</div>
+    </div>
+    <div class="card stat">
+      <div class="label">Avg. authorization time</div>
+      <div class="value tab">{{ formatAuthTime(s.avgAuthSeconds) }}</div>
+    </div>
+  </div>
+
+  <div class="card panel">
+    <div class="panel-head">
+      <h3>Volume, last {{ summaryDays }} days</h3>
+      @if (chart().xLabels.length > 0) {
+        <span class="hint">
+          {{ chart().xLabels[0].label }} – {{ chart().xLabels[chart().xLabels.length - 1].label }}
+        </span>
+      }
+    </div>
+    <div class="chart-wrap">
+      <svg
+        class="chart"
+        [attr.viewBox]="'0 0 ' + chart().viewBoxWidth + ' ' + chart().viewBoxHeight"
+        style="min-width: 560px; width: 100%; height: auto"
+        role="img"
+        [attr.aria-label]="'Line chart of daily payment volume over the last ' + summaryDays + ' days'"
+      >
+        @for (g of chart().gridLines; track g.y) {
+          <line class="grid" x1="48" [attr.y1]="g.y" [attr.x2]="chart().viewBoxWidth - 20" [attr.y2]="g.y" />
+          <text x="40" [attr.y]="g.y + 3" text-anchor="end">{{ g.label }}</text>
+        }
+        <path class="area" [attr.d]="chart().areaPath" />
+        <path class="line" [attr.d]="chart().linePath" />
+        <circle class="dot-end" [attr.cx]="chart().lastPoint.x" [attr.cy]="chart().lastPoint.y" r="3.5" />
+        @for (xl of chart().xLabels; track xl.x) {
+          <text [attr.x]="xl.x" [attr.y]="chart().viewBoxHeight - 10" text-anchor="middle">{{ xl.label }}</text>
+        }
+      </svg>
+    </div>
+  </div>
+}
+
+<div class="card panel">
+  <div class="panel-head">
+    <h3>Recent transactions</h3>
+    <span class="hint">6 most recent</span>
+  </div>
+
+  @if (recentError()) {
+    <div class="banner error">
+      <span>{{ recentError() }}</span>
+      <button type="button" (click)="loadRecent()">Retry</button>
+    </div>
+  }
+
+  @if (recentLoading() || recentSuccess()) {
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Customer</th>
+            <th>Method</th>
+            <th>Status</th>
+            <th class="amount">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (recentLoading()) {
+            @for (row of skeletonRows; track $index) {
+              <tr>
+                <td colspan="5"><div class="skeleton-bar" style="height: 18px"></div></td>
+              </tr>
+            }
+          }
+          @if (recentSuccess()) {
+            @for (payment of recent(); track payment.paymentId) {
+              <tr
+                [class.row-link]="rowsClickable()"
+                (click)="rowsClickable() && openPayment(payment.paymentId)"
+              >
+                <td class="cell-id mono">{{ payment.paymentId.slice(0, 8) }}</td>
+                <td>{{ payment.customerName ?? '—' }}</td>
+                <td>{{ payment.method ?? '—' }}</td>
+                <td>
+                  <span class="status-pill {{ statusPillVariant(payment.status) }}">
+                    <span class="dot"></span>{{ statusLabel(payment.status) }}
+                  </span>
+                </td>
+                <td class="amount tab">{{ formatMoney(payment.amountMinor, payment.currency) }}</td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+  @if (recentEmpty()) {
+    <div class="empty-state">
+      <b>No transactions yet</b>
+      <span>Recent activity will show up here once the first payment comes through.</span>
+    </div>
+  }
+</div>

@@ -1,0 +1,67 @@
+<div class="card panel">
+  <div class="panel-head">
+    <h3>Webhook dead-letter queue</h3>
+    <span class="hint">deliveries that have exhausted automatic retries</span>
+  </div>
+
+  @if (hasError()) {
+    <div class="banner error">
+      <span>{{ errorMessage() }}</span>
+      <button type="button" (click)="load()">Retry</button>
+    </div>
+  }
+
+  @if (isLoading() || isSuccess()) {
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Event type</th>
+            <th>Response code</th>
+            <th>Attempts</th>
+            <th>Next retry</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (isLoading()) {
+            @for (row of skeletonRows; track $index) {
+              <tr>
+                <td colspan="5"><div class="skeleton-bar" style="height: 18px"></div></td>
+              </tr>
+            }
+          }
+          @if (isSuccess()) {
+            @for (delivery of deliveries(); track delivery.id) {
+              <tr>
+                <td class="mono">{{ delivery.eventType }}</td>
+                <td>{{ delivery.responseCode ?? '—' }}</td>
+                <td>{{ delivery.attemptCount }}</td>
+                <td>
+                  {{ delivery.nextRetryAt ? (delivery.nextRetryAt | date: 'MMM d, h:mm a') : '—' }}
+                </td>
+                <td>
+                  <button
+                    class="btn-outline"
+                    type="button"
+                    [disabled]="retryingIds().has(delivery.id)"
+                    (click)="retry(delivery)"
+                  >
+                    {{ retryingIds().has(delivery.id) ? 'Retrying…' : 'Retry now' }}
+                  </button>
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+  @if (isEmpty()) {
+    <div class="empty-state">
+      <b>No dead-lettered deliveries</b>
+      <span>Nothing is stuck — every webhook has been delivered successfully.</span>
+    </div>
+  }
+</div>

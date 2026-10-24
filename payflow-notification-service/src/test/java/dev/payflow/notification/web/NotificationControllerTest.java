@@ -90,6 +90,9 @@ class NotificationControllerTest {
 
   @Test
   void getMerchantDeliveriesRequiresTheMerchantIdHeader() throws Exception {
-    mockMvc.perform(get("/webhooks/deliveries")).andExpect(status().isBadRequest());
+    mockMvc
+        .perform(get("/webhooks/deliveries"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.status").value(400));
   }
 }

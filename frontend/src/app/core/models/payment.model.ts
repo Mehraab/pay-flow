@@ -31,6 +31,8 @@ export interface CreatePaymentRequest {
   currency: Currency;
   cardNumber: string;
   forceLedgerFailure: boolean;
+  /** Optional — payflow-payment-command-service falls back to "Customer" when omitted. */
+  customer?: string;
 }
 
 export interface CreatePaymentResponse {

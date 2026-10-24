@@ -1,0 +1,68 @@
+@if (isLoading()) {
+  <div class="provider-grid">
+    @for (row of skeletonCards; track $index) {
+      <div class="card provider-card"><div class="skeleton-bar" style="height: 80px"></div></div>
+    }
+  </div>
+}
+
+@if (hasError()) {
+  <div class="banner error">
+    <span>{{ errorMessage() }}</span>
+    <button type="button" (click)="load()">Retry</button>
+  </div>
+}
+
+@if (isEmpty()) {
+  <div class="empty-state">
+    <b>No providers configured</b>
+    <span>No payment providers are set up for routing — this needs attention.</span>
+  </div>
+}
+
+@if (isSuccess()) {
+  <div class="provider-grid">
+    @for (provider of providers(); track provider.id) {
+      <div class="card provider-card">
+        <div class="prow">
+          <div>
+            <div class="pname">
+              {{ provider.name }}
+              <span class="priority-tag">priority {{ provider.priority }}</span>
+            </div>
+            <span class="status-pill {{ healthVariant(provider.healthStatus) }}" style="margin-top: 8px">
+              <span class="dot"></span>{{ provider.healthStatus }}
+            </span>
+          </div>
+          <label class="switch">
+            <input
+              type="checkbox"
+              [checked]="provider.active"
+              [disabled]="pendingToggleIds().has(provider.id)"
+              (change)="toggleActive(provider)"
+            />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="pstats">
+          <div>
+            Success rate
+            <b>{{ provider.successRatePct }}%</b>
+          </div>
+          <div>
+            Avg. latency
+            <b>{{ provider.avgLatencyMs }}ms</b>
+          </div>
+        </div>
+        @if (toggleErrors()[provider.id]) {
+          <div class="pnote error">{{ toggleErrors()[provider.id] }}</div>
+        }
+      </div>
+    }
+  </div>
+
+  <div class="card panel">
+    <div class="panel-head"><h3>Routing status</h3></div>
+    <p class="mono routing-note">{{ routingNote() }}</p>
+  </div>
+}

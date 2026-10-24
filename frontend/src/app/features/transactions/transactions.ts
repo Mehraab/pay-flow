@@ -5,6 +5,7 @@ import { PaymentViewEnriched } from '../../core/models';
 import { PaymentService } from '../../core/services/payment.service';
 import { SearchQueryService } from '../../shared/services/search-query.service';
 import { initialViewState, ViewState } from '../../shared/state/view-state';
+import { extractErrorMessage } from '../../shared/utils/http-error';
 import { statusLabel, statusPillVariant } from '../../shared/utils/payment-status';
 import { formatMoney } from '../../shared/utils/money';
 import { applyFilters, StatusFilter } from './apply-filters';
@@ -65,8 +66,12 @@ export class Transactions {
     this.state.set(initialViewState());
     this.paymentService.listPayments().subscribe({
       next: (data) => this.state.set({ loading: false, error: null, data }),
-      error: () =>
-        this.state.set({ loading: false, error: "Couldn't load transactions — retry", data: null }),
+      error: (err) =>
+        this.state.set({
+          loading: false,
+          error: extractErrorMessage(err, "Couldn't load transactions — retry"),
+          data: null,
+        }),
     });
   }
 

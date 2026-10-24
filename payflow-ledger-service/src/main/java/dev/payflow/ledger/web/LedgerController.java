@@ -2,6 +2,7 @@ package dev.payflow.ledger.web;
 
 import dev.payflow.common.domain.Currency;
 import dev.payflow.common.domain.Money;
+import dev.payflow.common.dto.ErrorResponse;
 import dev.payflow.ledger.account.LedgerAccountService;
 import dev.payflow.ledger.posting.LedgerEntry;
 import dev.payflow.ledger.posting.LedgerPostingService;
@@ -33,6 +34,10 @@ public class LedgerController {
       @RequestHeader(value = "X-Force-Ledger-Failure", required = false) Boolean forceFailure,
       @RequestBody PostCaptureRequest request) {
     if (Boolean.TRUE.equals(forceFailure)) {
+      // BE-11: deliberately a plain, uncaught IllegalStateException (-> 500), not one of
+      // LedgerExceptionHandler's mapped types — this simulates a genuine ledger-side outage for
+      // the saga-compensation tests in payflow-payment-orchestrator, which needs an opaque
+      // server fault here, not a clean 4xx.
       throw new IllegalStateException("Simulated ledger failure for payment " + request.paymentId());
     }
     Money amount = Money.of(request.amountMinor(), Currency.valueOf(request.currency()));
@@ -56,21 +61,27 @@ public class LedgerController {
   }
 
   @GetMapping("/accounts/{accountName}/balance")
-  public ResponseEntity<AccountBalanceResponse> platformAccountBalance(@PathVariable String accountName) {
+  public ResponseEntity<?> platformAccountBalance(@PathVariable String accountName) {
     return accountService
         .findPlatformAccount(accountName)
         .or(() -> accountService.findUniqueMerchantAccountByNameOrSlug(accountName))
-        .map(acc -> ResponseEntity.ok(new AccountBalanceResponse(acc.accountName(), acc.balanceMinor())))
-        .orElseGet(() -> ResponseEntity.notFound().build());
+        .<ResponseEntity<?>>map(acc -> ResponseEntity.ok(new AccountBalanceResponse(acc.accountName(), acc.balanceMinor())))
+        .orElseGet(
+            () ->
+                ResponseEntity.status(404)
+                    .body(ErrorResponse.of("Account '" + accountName + "' not found", 404)));
   }
 
   @GetMapping("/accounts/{merchantId}/{accountName}/balance")
-  public ResponseEntity<AccountBalanceResponse> merchantAccountBalance(
-      @PathVariable UUID merchantId, @PathVariable String accountName) {
+  public ResponseEntity<?> merchantAccountBalance(@PathVariable UUID merchantId, @PathVariable String accountName) {
     return accountService
         .findMerchantAccount(merchantId, accountName)
-        .map(acc -> ResponseEntity.ok(new AccountBalanceResponse(acc.accountName(), acc.balanceMinor())))
-        .orElseGet(() -> ResponseEntity.notFound().build());
+        .<ResponseEntity<?>>map(acc -> ResponseEntity.ok(new AccountBalanceResponse(acc.accountName(), acc.balanceMinor())))
+        .orElseGet(
+            () ->
+                ResponseEntity.status(404)
+                    .body(
+                        ErrorResponse.of("Account '" + accountName + "' not found for merchant " + merchantId, 404)));
   }
 
   @GetMapping("/operator/ledger/integrity")
@@ -90,5 +101,22 @@ public class LedgerController {
     long totalElements = postingService.countEntriesSince(since);
     int totalPages = size > 0 ? (int) Math.ceil((double) totalElements / size) : 0;
     return new PageResponse<>(content, page, size, totalElements, totalPages);
+  }
+
+  @GetMapping("/ledger/merchants/{merchantId}/entries")
+  public ResponseEntity<?> merchantLedgerEntries(
+      @PathVariable UUID merchantId,
+      @RequestHeader(value = "X-Merchant-Id", required = false) String merchantIdHeader,
+      @RequestParam(value = "page", defaultValue = "0") int page,
+      @RequestParam(value = "size", defaultValue = "20") int size) {
+    if (merchantIdHeader != null && !merchantId.toString().equalsIgnoreCase(merchantIdHeader)) {
+      return ResponseEntity.status(403)
+          .body(ErrorResponse.of("X-Merchant-Id header does not match the requested merchantId", 403));
+    }
+    List<LedgerEntryResponse> content =
+        postingService.findMerchantEntriesPaged(merchantId, page, size).stream().map(this::toResponse).toList();
+    long totalElements = postingService.countMerchantEntries(merchantId);
+    int totalPages = size > 0 ? (int) Math.ceil((double) totalElements / size) : 0;
+    return ResponseEntity.ok(new PageResponse<>(content, page, size, totalElements, totalPages));
   }
 }

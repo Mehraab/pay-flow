@@ -55,6 +55,7 @@ class PaymentGatewayControllerTest {
   private volatile String lastLedgerQuery;
   private volatile String lastLedgerMethod;
   private volatile String lastLedgerBody;
+  private volatile String lastLedgerMerchantIdHeader;
   private volatile String lastNotificationPath;
   private volatile String lastNotificationQuery;
   private volatile String lastNotificationMerchantIdHeader;
@@ -132,6 +133,7 @@ class PaymentGatewayControllerTest {
           lastLedgerPath = exchange.getRequestURI().getPath();
           lastLedgerQuery = exchange.getRequestURI().getQuery();
           lastLedgerMethod = exchange.getRequestMethod();
+          lastLedgerMerchantIdHeader = exchange.getRequestHeaders().getFirst("X-Merchant-Id");
           lastLedgerBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
           byte[] body = "{\"stub\":true}".getBytes(StandardCharsets.UTF_8);
           exchange.getResponseHeaders().add("Content-Type", "application/json");
@@ -444,5 +446,60 @@ class PaymentGatewayControllerTest {
     assertThat(lastNotificationPath).isEqualTo("/webhooks/deliveries");
     assertThat(lastNotificationQuery).contains("page=1").contains("size=5");
     assertThat(lastNotificationMerchantIdHeader).isEqualTo(merchantId.toString());
+  }
+
+  @Test
+  void merchantLedgerEntriesForwardsPageSizeAndMerchantIdHeaderToTheLedgerService() {
+    // The JWT filter derives X-Merchant-Id from the token's own merchantId claim and overrides
+    // whatever the client sent — so the token must be minted with this exact merchant id.
+    UUID merchantId = UUID.randomUUID();
+    String authHeader = "Bearer " + jwtTokenService.issueAccessToken(merchantId.toString(), "ROLE_MERCHANT", merchantId);
+    RequestEntity<Void> request =
+        RequestEntity.get(
+                URI.create("http://localhost:" + port + "/ledger/merchants/" + merchantId + "/entries?page=1&size=5"))
+            .header("Authorization", authHeader)
+            .build();
+
+    ResponseEntity<String> response = restTemplate.exchange(request, String.class);
+
+    assertThat(response.getStatusCode().value()).isEqualTo(200);
+    assertThat(lastLedgerPath).isEqualTo("/ledger/merchants/" + merchantId + "/entries");
+    assertThat(lastLedgerQuery).contains("page=1").contains("size=5");
+    assertThat(lastLedgerMerchantIdHeader).isEqualTo(merchantId.toString());
+  }
+
+  @Test
+  void listPayoutsForwardsMerchantIdHeaderQueryParamPageAndSizeToTheLedgerService() {
+    UUID merchantId = UUID.randomUUID();
+    String authHeader = "Bearer " + jwtTokenService.issueAccessToken(merchantId.toString(), "ROLE_MERCHANT", merchantId);
+    RequestEntity<Void> request =
+        RequestEntity.get(
+                URI.create("http://localhost:" + port + "/payouts?merchantId=" + merchantId + "&page=1&size=5"))
+            .header("Authorization", authHeader)
+            .build();
+
+    ResponseEntity<String> response = restTemplate.exchange(request, String.class);
+
+    assertThat(response.getStatusCode().value()).isEqualTo(200);
+    assertThat(lastLedgerPath).isEqualTo("/payouts");
+    assertThat(lastLedgerQuery).contains("merchantId=" + merchantId).contains("page=1").contains("size=5");
+    assertThat(lastLedgerMerchantIdHeader).isEqualTo(merchantId.toString());
+  }
+
+  @Test
+  void payoutsForMerchantForwardsPageSizeAndMerchantIdHeaderToTheLedgerService() {
+    UUID merchantId = UUID.randomUUID();
+    String authHeader = "Bearer " + jwtTokenService.issueAccessToken(merchantId.toString(), "ROLE_MERCHANT", merchantId);
+    RequestEntity<Void> request =
+        RequestEntity.get(URI.create("http://localhost:" + port + "/payouts/merchants/" + merchantId + "?page=1&size=5"))
+            .header("Authorization", authHeader)
+            .build();
+
+    ResponseEntity<String> response = restTemplate.exchange(request, String.class);
+
+    assertThat(response.getStatusCode().value()).isEqualTo(200);
+    assertThat(lastLedgerPath).isEqualTo("/payouts/merchants/" + merchantId);
+    assertThat(lastLedgerQuery).contains("page=1").contains("size=5");
+    assertThat(lastLedgerMerchantIdHeader).isEqualTo(merchantId.toString());
   }
 }

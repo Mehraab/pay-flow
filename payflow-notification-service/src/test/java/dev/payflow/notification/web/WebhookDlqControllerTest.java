@@ -79,8 +79,14 @@ class WebhookDlqControllerTest {
   @Test
   void retryReturnsNotFoundWhenTheDeliveryDoesNotExist() throws Exception {
     UUID id = UUID.randomUUID();
-    doThrow(new NoSuchElementException("missing")).when(dispatcherService).retryDelivery(any());
+    doThrow(new NoSuchElementException("No webhook delivery with id '" + id + "'"))
+        .when(dispatcherService)
+        .retryDelivery(any());
 
-    mockMvc.perform(post("/operator/webhooks/dlq/{id}/retry", id)).andExpect(status().isNotFound());
+    mockMvc
+        .perform(post("/operator/webhooks/dlq/{id}/retry", id))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.error").value("No webhook delivery with id '" + id + "'"))
+        .andExpect(jsonPath("$.status").value(404));
   }
 }

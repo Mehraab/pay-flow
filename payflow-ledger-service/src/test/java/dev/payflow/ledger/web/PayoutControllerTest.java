@@ -8,6 +8,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import dev.payflow.ledger.payout.MerchantPayableAccountNotFoundException;
+import dev.payflow.ledger.payout.NoPayoutBalanceAvailableException;
 import dev.payflow.ledger.payout.Payout;
 import dev.payflow.ledger.payout.PayoutStatus;
 import dev.payflow.ledger.posting.LedgerPostingService;
@@ -53,6 +55,37 @@ class PayoutControllerTest {
   }
 
   @Test
+  void createPayoutReturns404WhenTheMerchantHasNoPayableAccount() throws Exception {
+    UUID merchantId = UUID.randomUUID();
+    when(postingService.createPayout(merchantId))
+        .thenThrow(new MerchantPayableAccountNotFoundException("No Merchant Payable account for merchant " + merchantId));
+
+    mockMvc
+        .perform(
+            post("/payouts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CreatePayoutRequest(merchantId))))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.error").value("No Merchant Payable account for merchant " + merchantId))
+        .andExpect(jsonPath("$.status").value(404));
+  }
+
+  @Test
+  void createPayoutReturns409WhenThereIsNoAvailableBalance() throws Exception {
+    UUID merchantId = UUID.randomUUID();
+    when(postingService.createPayout(merchantId)).thenThrow(new NoPayoutBalanceAvailableException("No available balance for payout"));
+
+    mockMvc
+        .perform(
+            post("/payouts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CreatePayoutRequest(merchantId))))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.error").value("No available balance for payout"))
+        .andExpect(jsonPath("$.status").value(409));
+  }
+
+  @Test
   void getPayoutReturnsTheStoredPayout() throws Exception {
     UUID payoutId = UUID.randomUUID();
     UUID merchantId = UUID.randomUUID();
@@ -72,7 +105,11 @@ class PayoutControllerTest {
     UUID payoutId = UUID.randomUUID();
     when(postingService.findPayoutById(payoutId)).thenReturn(Optional.empty());
 
-    mockMvc.perform(get("/payouts/{id}", payoutId)).andExpect(status().isNotFound());
+    mockMvc
+        .perform(get("/payouts/{id}", payoutId))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.error").value("Payout " + payoutId + " not found"))
+        .andExpect(jsonPath("$.status").value(404));
   }
 
   @Test
@@ -100,5 +137,68 @@ class PayoutControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$").isArray())
         .andExpect(jsonPath("$").isEmpty());
+  }
+
+  @Test
+  void listPayoutsResolvesTheMerchantIdFromTheQueryParam() throws Exception {
+    UUID merchantId = UUID.randomUUID();
+    Payout payout =
+        new Payout(UUID.randomUUID(), merchantId, 20_779, "USD", PayoutStatus.SETTLED, Instant.now(), null);
+    when(postingService.findMerchantPayoutsPaged(merchantId, 0, 20)).thenReturn(List.of(payout));
+    when(postingService.countMerchantPayouts(merchantId)).thenReturn(1L);
+
+    mockMvc
+        .perform(get("/payouts").param("merchantId", merchantId.toString()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content.length()").value(1))
+        .andExpect(jsonPath("$.content[0].merchantId").value(merchantId.toString()))
+        .andExpect(jsonPath("$.totalElements").value(1));
+  }
+
+  @Test
+  void listPayoutsResolvesTheMerchantIdFromTheHeaderWhenNoQueryParamIsGiven() throws Exception {
+    UUID merchantId = UUID.randomUUID();
+    when(postingService.findMerchantPayoutsPaged(merchantId, 0, 20)).thenReturn(List.of());
+    when(postingService.countMerchantPayouts(merchantId)).thenReturn(0L);
+
+    mockMvc
+        .perform(get("/payouts").header("X-Merchant-Id", merchantId.toString()))
+        .andExpect(status().isOk());
+
+    verify(postingService).findMerchantPayoutsPaged(merchantId, 0, 20);
+  }
+
+  @Test
+  void listPayoutsReturns400WhenNoMerchantIdIsResolvable() throws Exception {
+    mockMvc
+        .perform(get("/payouts"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.status").value(400));
+  }
+
+  @Test
+  void listPayoutsReturns403WhenTheQueryParamDoesNotMatchTheMerchantIdHeader() throws Exception {
+    UUID headerMerchantId = UUID.randomUUID();
+    UUID queryMerchantId = UUID.randomUUID();
+
+    mockMvc
+        .perform(
+            get("/payouts")
+                .header("X-Merchant-Id", headerMerchantId.toString())
+                .param("merchantId", queryMerchantId.toString()))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.error").value("X-Merchant-Id header does not match the requested merchantId"))
+        .andExpect(jsonPath("$.status").value(403));
+  }
+
+  @Test
+  void listPayoutsForMerchantDelegatesToListPayouts() throws Exception {
+    UUID merchantId = UUID.randomUUID();
+    when(postingService.findMerchantPayoutsPaged(merchantId, 0, 20)).thenReturn(List.of());
+    when(postingService.countMerchantPayouts(merchantId)).thenReturn(0L);
+
+    mockMvc.perform(get("/payouts/merchants/{merchantId}", merchantId)).andExpect(status().isOk());
+
+    verify(postingService).findMerchantPayoutsPaged(merchantId, 0, 20);
   }
 }

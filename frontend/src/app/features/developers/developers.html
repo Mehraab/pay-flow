@@ -1,0 +1,89 @@
+<div class="card panel">
+  <div class="panel-head">
+    <h3>API keys</h3>
+    <span class="mocked-tag">mocked — no backend concept yet</span>
+  </div>
+  <div>
+    @for (key of mockApiKeys; track key.name) {
+      <div class="key-row">
+        <div>
+          <div class="kname">{{ key.name }}</div>
+          <div class="kmeta">Created {{ key.created }} · last used {{ key.used }}</div>
+        </div>
+        <div class="key-value">
+          <code>{{ key.value }}</code>
+          <button class="copy-btn" type="button" (click)="copyKey(key)">Copy</button>
+        </div>
+      </div>
+    }
+  </div>
+</div>
+
+<div class="card panel">
+  <div class="panel-head">
+    <h3>Webhook endpoint</h3>
+    <span class="mocked-tag">mocked — no registration endpoint yet</span>
+  </div>
+  <div class="webhook-url">
+    <code class="mono">{{ mockWebhookUrl }}</code>
+    <button class="copy-btn" type="button" (click)="copyWebhookUrl()">
+      {{ urlCopied() ? 'Copied!' : 'Copy URL' }}
+    </button>
+  </div>
+
+  <div class="panel-head" style="margin-top: 4px">
+    <h3 style="font-size: 13px">Recent deliveries</h3>
+  </div>
+
+  @if (hasError()) {
+    <div class="banner error">
+      <span>{{ errorMessage() }}</span>
+      <button type="button" (click)="load()">Retry</button>
+    </div>
+  }
+
+  @if (isLoading() || isSuccess()) {
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Event</th>
+            <th>Status</th>
+            <th>Attempts</th>
+            <th>Last attempt</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (isLoading()) {
+            @for (row of skeletonRows; track $index) {
+              <tr>
+                <td colspan="4"><div class="skeleton-bar" style="height: 18px"></div></td>
+              </tr>
+            }
+          }
+          @if (isSuccess()) {
+            @for (delivery of deliveries(); track delivery.id) {
+              <tr>
+                <td class="mono">{{ delivery.eventType }}</td>
+                <td>
+                  <span class="status-pill {{ statusPillVariant(delivery.status) }}">
+                    <span class="dot"></span>{{ delivery.status }}
+                  </span>
+                </td>
+                <td>{{ delivery.attemptCount }}</td>
+                <td>{{ delivery.lastAttemptAt | date: 'MMM d, h:mm:ss a' }}</td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+  @if (isEmpty()) {
+    <div class="empty-state">
+      <b>No webhook deliveries yet</b>
+      <span>Deliveries will show up here once your first event is sent.</span>
+    </div>
+  }
+</div>

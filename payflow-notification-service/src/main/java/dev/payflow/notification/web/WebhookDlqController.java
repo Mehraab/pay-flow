@@ -33,14 +33,15 @@ public class WebhookDlqController {
 
   @PostMapping("/{id}/retry")
   public ResponseEntity<WebhookDeliveryResponse> retry(@PathVariable UUID id) {
-    try {
-      dispatcherService.retryDelivery(id);
-    } catch (NoSuchElementException e) {
-      return ResponseEntity.notFound().build();
-    }
-    return deliveryRepository
-        .findById(id)
-        .map(delivery -> ResponseEntity.ok(WebhookDeliveryResponse.from(delivery)))
-        .orElseGet(() -> ResponseEntity.notFound().build());
+    // Both a missing delivery (thrown by retryDelivery itself, with its own specific message)
+    // and this delivery vanishing before the re-read below propagate as NoSuchElementException —
+    // NotificationExceptionHandler turns either into a uniform 404 ErrorResponse.
+    dispatcherService.retryDelivery(id);
+    WebhookDeliveryResponse response =
+        deliveryRepository
+            .findById(id)
+            .map(WebhookDeliveryResponse::from)
+            .orElseThrow(() -> new NoSuchElementException("Webhook delivery " + id + " not found"));
+    return ResponseEntity.ok(response);
   }
 }

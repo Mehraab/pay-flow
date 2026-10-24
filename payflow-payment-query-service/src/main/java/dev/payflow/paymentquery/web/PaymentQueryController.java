@@ -1,9 +1,8 @@
 package dev.payflow.paymentquery.web;
 
-import dev.payflow.paymentquery.view.PaymentTimelineEvent;
+import dev.payflow.common.dto.ErrorResponse;
 import dev.payflow.paymentquery.view.PaymentView;
 import dev.payflow.paymentquery.view.PaymentViewStore;
-import java.util.List;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -43,14 +42,20 @@ public class PaymentQueryController {
 
   @GetMapping("/payments/{id}")
   public ResponseEntity<?> getPayment(@PathVariable UUID id) {
-    return store.findById(id).<ResponseEntity<?>>map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
+    return store
+        .findById(id)
+        .<ResponseEntity<?>>map(ResponseEntity::ok)
+        .orElseGet(() -> ResponseEntity.status(404).body(ErrorResponse.of("Payment " + id + " not found", 404)));
   }
 
   @GetMapping("/payments/{id}/events")
-  public ResponseEntity<List<PaymentTimelineEvent>> getTimeline(@PathVariable UUID id) {
+  public ResponseEntity<?> getTimeline(@PathVariable UUID id) {
     return store
         .findTimeline(id)
-        .<ResponseEntity<List<PaymentTimelineEvent>>>map(ResponseEntity::ok)
-        .orElseGet(() -> ResponseEntity.notFound().build());
+        .<ResponseEntity<?>>map(ResponseEntity::ok)
+        .orElseGet(
+            () ->
+                ResponseEntity.status(404)
+                    .body(ErrorResponse.of("Timeline for payment " + id + " not found", 404)));
   }
 }

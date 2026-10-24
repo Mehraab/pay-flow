@@ -6,6 +6,8 @@ import dev.payflow.ledger.account.AccountType;
 import dev.payflow.ledger.account.LedgerAccount;
 import dev.payflow.ledger.account.LedgerAccountService;
 import dev.payflow.ledger.account.NormalBalance;
+import dev.payflow.ledger.payout.MerchantPayableAccountNotFoundException;
+import dev.payflow.ledger.payout.NoPayoutBalanceAvailableException;
 import dev.payflow.ledger.payout.Payout;
 import dev.payflow.ledger.payout.PayoutRepository;
 import dev.payflow.ledger.payout.PayoutStatus;
@@ -127,11 +129,11 @@ public class LedgerPostingService {
             .findMerchantAccount(merchantId, LedgerAccountService.MERCHANT_PAYABLE)
             .orElseThrow(
                 () ->
-                    new IllegalStateException(
+                    new MerchantPayableAccountNotFoundException(
                         "No " + LedgerAccountService.MERCHANT_PAYABLE + " account for merchant " + merchantId));
 
     if (merchantPayable.balanceMinor() <= 0) {
-      throw new IllegalStateException("No available balance for payout");
+      throw new NoPayoutBalanceAvailableException("No available balance for payout");
     }
     long amountMinor = merchantPayable.balanceMinor();
 
@@ -204,6 +206,33 @@ public class LedgerPostingService {
     return entryRepository.countEntries(since);
   }
 
+  /** BE-09: merchant-wide ledger feed, newest first — see {@code GET /ledger/merchants/{id}/entries}. */
+  public List<LedgerEntry> findMerchantEntriesPaged(UUID merchantId, int page, int size) {
+    return entryRepository.findEntriesByMerchantId(merchantId, page * size, size);
+  }
+
+  public long countMerchantEntries(UUID merchantId) {
+    return entryRepository.countEntriesByMerchantId(merchantId);
+  }
+
+  /** BE-10: merchant payout history, newest first — see {@code GET /payouts}. */
+  public List<Payout> findMerchantPayoutsPaged(UUID merchantId, int page, int size) {
+    return payoutRepository.findByMerchantId(merchantId, page * size, size);
+  }
+
+  public long countMerchantPayouts(UUID merchantId) {
+    return payoutRepository.countByMerchantId(merchantId);
+  }
+
+  /**
+   * BE-11: both failure modes here are internal consistency invariants (a capture's ledger
+   * entries must always reference a real, merchant-scoped account) — not a predictable,
+   * client-triggerable business condition the way {@code createPayout}'s failures are.
+   * Deliberately left as plain, uncaught exceptions (bare {@code NoSuchElementException} /
+   * {@code IllegalStateException}, surfacing as a 500) rather than given {@code
+   * LedgerExceptionHandler}-mapped types: if this ever actually throws, it means the data is
+   * corrupt, and that should look like a server fault, not a clean 404.
+   */
   private UUID resolveMerchantId(List<LedgerEntry> entries) {
     for (LedgerEntry entry : entries) {
       LedgerAccount creditAccount = accountService.findById(entry.creditAccountId()).orElseThrow();

@@ -1,0 +1,51 @@
+/* Card/panel/table/empty-state/banner/skeleton-bar/btn-outline primitives live in the
+   global stylesheet. This file has ledger-specific layout, ported from the HTML. */
+
+.ledger-accounts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.ledger-accounts .card {
+  padding: 15px 16px;
+}
+
+.ledger-accounts .kind {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--faint);
+  font-weight: 700;
+}
+
+.ledger-accounts .name {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+.ledger-accounts .bal {
+  font-family: 'Manrope', sans-serif;
+  font-size: 19px;
+  font-weight: 800;
+  margin-top: 6px;
+}
+
+.ledger-head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+/* .panel-head's own space-between (h3 vs. .hint) only has room to work with once it
+   stretches to fill the row — as a bare flex item here it shrink-wraps its content,
+   so the heading and hint render with no gap at all. */
+.ledger-head-row .panel-head {
+  flex: 1;
+  min-width: 0;
+}

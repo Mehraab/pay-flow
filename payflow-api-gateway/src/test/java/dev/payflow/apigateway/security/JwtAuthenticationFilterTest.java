@@ -1,5 +1,6 @@
 package dev.payflow.apigateway.security;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
@@ -7,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import dev.payflow.common.dto.ErrorResponse;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -29,13 +31,15 @@ class JwtAuthenticationFilterTest {
   private HttpServletRequest request;
   private HttpServletResponse response;
   private FilterChain chain;
+  private StringWriter responseBody;
 
   @BeforeEach
   void setUp() throws Exception {
     request = mock(HttpServletRequest.class);
     response = mock(HttpServletResponse.class);
     chain = mock(FilterChain.class);
-    when(response.getWriter()).thenReturn(new PrintWriter(new StringWriter()));
+    responseBody = new StringWriter();
+    when(response.getWriter()).thenReturn(new PrintWriter(responseBody));
   }
 
   @Test
@@ -67,6 +71,10 @@ class JwtAuthenticationFilterTest {
 
     verify(response).setStatus(HttpServletResponse.SC_UNAUTHORIZED);
     verify(chain, never()).doFilter(any(), any());
+
+    ErrorResponse error = objectMapper.readValue(responseBody.toString(), ErrorResponse.class);
+    assertThat(error.error()).isEqualTo("Missing or invalid authorization token");
+    assertThat(error.status()).isEqualTo(401);
   }
 
   @Test
@@ -80,6 +88,10 @@ class JwtAuthenticationFilterTest {
 
     verify(response).setStatus(HttpServletResponse.SC_FORBIDDEN);
     verify(chain, never()).doFilter(any(), any());
+
+    ErrorResponse error = objectMapper.readValue(responseBody.toString(), ErrorResponse.class);
+    assertThat(error.error()).isEqualTo("Forbidden: Requires ROLE_OPERATOR");
+    assertThat(error.status()).isEqualTo(403);
   }
 
   @Test

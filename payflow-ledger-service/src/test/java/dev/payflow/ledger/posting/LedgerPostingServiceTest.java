@@ -8,6 +8,8 @@ import dev.payflow.common.domain.Money;
 import dev.payflow.ledger.AbstractPostgresIntegrationTest;
 import dev.payflow.ledger.account.LedgerAccount;
 import dev.payflow.ledger.account.LedgerAccountService;
+import dev.payflow.ledger.payout.MerchantPayableAccountNotFoundException;
+import dev.payflow.ledger.payout.NoPayoutBalanceAvailableException;
 import dev.payflow.ledger.payout.Payout;
 import dev.payflow.ledger.payout.PayoutStatus;
 import java.time.Instant;
@@ -178,8 +180,10 @@ class LedgerPostingServiceTest extends AbstractPostgresIntegrationTest {
   void createPayoutThrowsWhenTheMerchantHasNoPayableAccountAtAll() {
     UUID merchantId = UUID.randomUUID(); // never captured anything — no account was ever created
 
+    // BE-11: the specific subtype matters — LedgerExceptionHandler maps it to 404, distinctly
+    // from the zero-balance case below (409).
     assertThatThrownBy(() -> postingService.createPayout(merchantId))
-        .isInstanceOf(IllegalStateException.class);
+        .isInstanceOf(MerchantPayableAccountNotFoundException.class);
   }
 
   @Test
@@ -191,7 +195,7 @@ class LedgerPostingServiceTest extends AbstractPostgresIntegrationTest {
     postingService.reverseCaptureIfExists(paymentId); // brings Merchant Payable back to 0
 
     assertThatThrownBy(() -> postingService.createPayout(merchantId))
-        .isInstanceOf(IllegalStateException.class);
+        .isInstanceOf(NoPayoutBalanceAvailableException.class);
   }
 
   @Test
@@ -332,5 +336,68 @@ class LedgerPostingServiceTest extends AbstractPostgresIntegrationTest {
     assertThat(onePerPage).hasSize(1);
     assertThat(allFour).hasSize(4);
     assertThat(allFour).isSortedAccordingTo((a, b) -> b.postedAt().compareTo(a.postedAt()));
+  }
+
+  /**
+   * BE-09 tests scope by a fresh random merchant id per test rather than a {@code since} cutoff —
+   * unlike the platform-wide feed above, these queries are already isolated from other tests'
+   * postings by merchant id alone, so no additional isolation trick is needed.
+   */
+  @Test
+  void findMerchantEntriesPagedExcludesTheFeeRevenueLegWhichTouchesNoMerchantAccount() {
+    UUID merchantId = UUID.randomUUID();
+    postingService.postPaymentCapture(UUID.randomUUID(), merchantId, Money.of(21_400, Currency.USD));
+
+    // A capture posts 2 ledger_entries rows (merchant-share leg + platform fee leg), but only the
+    // merchant-share leg touches this merchant's own "Merchant Payable" account.
+    assertThat(postingService.countMerchantEntries(merchantId)).isEqualTo(1);
+    assertThat(postingService.findMerchantEntriesPaged(merchantId, 0, 100)).hasSize(1);
+  }
+
+  @Test
+  void findMerchantEntriesPagedIncludesAnEntryWhenTheMerchantIsEitherTheDebtorOrTheCreditor() {
+    UUID merchantId = UUID.randomUUID();
+    postingService.postPaymentCapture(UUID.randomUUID(), merchantId, Money.of(21_400, Currency.USD));
+    // Payout Phase A: debits this merchant's Merchant Payable, credits their Payout In-Transit —
+    // both legs of this one row belong to the same merchant, counted once (one row, not twice).
+    postingService.createPayout(merchantId);
+
+    assertThat(postingService.countMerchantEntries(merchantId)).isEqualTo(2);
+  }
+
+  @Test
+  void findMerchantEntriesPagedExcludesOtherMerchantsEntries() {
+    UUID merchantId = UUID.randomUUID();
+    UUID otherMerchantId = UUID.randomUUID();
+    postingService.postPaymentCapture(UUID.randomUUID(), merchantId, Money.of(21_400, Currency.USD));
+    postingService.postPaymentCapture(UUID.randomUUID(), otherMerchantId, Money.of(21_400, Currency.USD));
+
+    assertThat(postingService.countMerchantEntries(merchantId)).isEqualTo(1);
+  }
+
+  @Test
+  void findMerchantEntriesPagedOrdersNewestFirst() {
+    UUID merchantId = UUID.randomUUID();
+    postingService.postPaymentCapture(UUID.randomUUID(), merchantId, Money.of(21_400, Currency.USD));
+    postingService.postPaymentCapture(UUID.randomUUID(), merchantId, Money.of(10_000, Currency.USD));
+
+    List<LedgerEntry> entries = postingService.findMerchantEntriesPaged(merchantId, 0, 100);
+
+    assertThat(entries).hasSize(2);
+    assertThat(entries).isSortedAccordingTo((a, b) -> b.postedAt().compareTo(a.postedAt()));
+  }
+
+  @Test
+  void findMerchantPayoutsPagedReturnsOnlyThatMerchantsPayoutsNewestFirst() {
+    UUID merchantId = UUID.randomUUID();
+    postingService.postPaymentCapture(UUID.randomUUID(), merchantId, Money.of(21_400, Currency.USD));
+    Payout firstPayout = postingService.createPayout(merchantId);
+    postingService.postPaymentCapture(UUID.randomUUID(), merchantId, Money.of(10_000, Currency.USD));
+    Payout secondPayout = postingService.createPayout(merchantId);
+
+    List<Payout> payouts = postingService.findMerchantPayoutsPaged(merchantId, 0, 100);
+
+    assertThat(payouts).extracting(Payout::id).containsExactly(secondPayout.id(), firstPayout.id());
+    assertThat(postingService.countMerchantPayouts(merchantId)).isEqualTo(2);
   }
 }

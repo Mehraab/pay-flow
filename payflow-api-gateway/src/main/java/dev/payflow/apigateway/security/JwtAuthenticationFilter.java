@@ -1,5 +1,6 @@
 package dev.payflow.apigateway.security;
 
+import dev.payflow.common.dto.ErrorResponse;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -11,7 +12,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
-import java.util.Map;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import tools.jackson.databind.ObjectMapper;
@@ -86,7 +86,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
   private void writeError(HttpServletResponse response, int status, String message) throws IOException {
     response.setStatus(status);
     response.setContentType("application/json");
-    response.getWriter().write(objectMapper.writeValueAsString(Map.of("error", message)));
+    response.getWriter().write(objectMapper.writeValueAsString(ErrorResponse.of(message, status)));
   }
 
   /** Makes the merchant id resolved from the token's claims visible as {@code X-Merchant-Id}. */

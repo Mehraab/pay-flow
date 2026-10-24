@@ -6,6 +6,7 @@ import { map, switchMap, timer } from 'rxjs';
 import { PaymentEvent, PaymentViewEnriched } from '../../../core/models';
 import { PaymentService } from '../../../core/services/payment.service';
 import { initialViewState, ViewState } from '../../../shared/state/view-state';
+import { extractErrorMessage } from '../../../shared/utils/http-error';
 import { formatMoney } from '../../../shared/utils/money';
 import { statusLabel, statusPillVariant } from '../../../shared/utils/payment-status';
 
@@ -76,7 +77,12 @@ export class TransactionDetail {
     this.state.set(initialViewState());
     this.paymentService.getPayment(this.id).subscribe({
       next: (data) => this.state.set({ loading: false, error: null, data }),
-      error: () => this.state.set({ loading: false, error: "Couldn't load this payment — retry", data: null }),
+      error: (err) =>
+        this.state.set({
+          loading: false,
+          error: extractErrorMessage(err, "Couldn't load this payment — retry"),
+          data: null,
+        }),
     });
   }
 
@@ -84,8 +90,12 @@ export class TransactionDetail {
     this.timelineState.set(initialViewState());
     this.paymentService.getPaymentEvents(this.id).subscribe({
       next: (data) => this.timelineState.set({ loading: false, error: null, data }),
-      error: () =>
-        this.timelineState.set({ loading: false, error: "Couldn't load the timeline — retry", data: null }),
+      error: (err) =>
+        this.timelineState.set({
+          loading: false,
+          error: extractErrorMessage(err, "Couldn't load the timeline — retry"),
+          data: null,
+        }),
     });
   }
 
@@ -97,9 +107,9 @@ export class TransactionDetail {
     this.refundStatusMessage.set('Refund requested — updating…');
     this.paymentService.refundPayment(payment.paymentId).subscribe({
       next: () => this.pollForRefund(previousStatus),
-      error: () => {
+      error: (err) => {
         this.isRefunding.set(false);
-        this.refundStatusMessage.set("Couldn't submit the refund — try again.");
+        this.refundStatusMessage.set(extractErrorMessage(err, "Couldn't submit the refund — try again."));
       },
     });
   }
@@ -122,9 +132,11 @@ export class TransactionDetail {
             this.pollForRefund(previousStatus, attempt + 1);
           }
         },
-        error: () => {
+        error: (err) => {
           this.isRefunding.set(false);
-          this.refundStatusMessage.set("Couldn't confirm the refund status — refresh to check.");
+          this.refundStatusMessage.set(
+            extractErrorMessage(err, "Couldn't confirm the refund status — refresh to check."),
+          );
         },
       });
   }

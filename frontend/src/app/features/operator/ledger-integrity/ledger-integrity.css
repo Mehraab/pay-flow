@@ -1,0 +1,85 @@
+/* Card/panel/table/status-pill/empty-state/banner/skeleton-bar primitives live in the
+   global stylesheet. This file only has ledger-integrity-specific layout. */
+
+.integrity-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-radius: 12px;
+  margin-bottom: 18px;
+  background: color-mix(in srgb, var(--status-captured) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--status-captured) 35%, transparent);
+}
+
+.integrity-banner.unbalanced {
+  background: color-mix(in srgb, var(--status-failed) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--status-failed) 35%, transparent);
+}
+
+.integrity-banner .check {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--status-captured);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex: none;
+  font-weight: 800;
+}
+
+.integrity-banner.unbalanced .check {
+  background: var(--status-failed);
+}
+
+.integrity-banner .ib-title {
+  font-family: 'Manrope', sans-serif;
+  font-weight: 800;
+  font-size: 15px;
+}
+
+.integrity-banner .ib-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.ledger-accounts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.ledger-accounts .card {
+  padding: 15px 16px;
+}
+
+.ledger-accounts .kind {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--faint);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* .mocked-tag lives in the global stylesheet. */
+
+.ledger-accounts .name {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+.ledger-accounts .bal {
+  font-family: 'Manrope', sans-serif;
+  font-size: 19px;
+  font-weight: 800;
+  margin-top: 6px;
+}
