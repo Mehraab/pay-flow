@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { Observable, catchError, finalize, shareReplay, tap, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { RefreshTokenRequest, Role, TokenRequest, TokenResponse } from '../models';
+import { decodeJwtPayload } from '../../shared/utils/jwt';
 
 interface AuthState {
   accessToken: string | null;
@@ -11,6 +12,16 @@ interface AuthState {
   role: Role | null;
   merchantId: string | null;
   expiresAt: number | null;
+}
+
+/**
+ * TokenResponse never echoes merchantId back (TokenResponse.java has no such field) —
+ * when the caller leaves it blank, AuthController.java generates a random one
+ * server-side that only ever shows up as a claim on the access token itself
+ * (JwtTokenService.java). Operator tokens carry no merchantId claim at all.
+ */
+interface AccessTokenClaims {
+  merchantId?: string;
 }
 
 const STORAGE_KEY = 'payflow.auth';
@@ -55,7 +66,7 @@ export class AuthService {
     const body: TokenRequest = { role, merchantId };
     return this.http
       .post<TokenResponse>(`${environment.apiBase}/auth/token`, body)
-      .pipe(tap((res) => this.applyTokenResponse(res, role, merchantId ?? null)));
+      .pipe(tap((res) => this.applyTokenResponse(res, role)));
   }
 
   /**
@@ -71,7 +82,7 @@ export class AuthService {
     const refreshToken = this._state().refreshToken;
     const body: RefreshTokenRequest = { refreshToken: refreshToken ?? '' };
     this.pendingRefresh = this.http.post<TokenResponse>(`${environment.apiBase}/auth/refresh`, body).pipe(
-      tap((res) => this.applyTokenResponse(res, this._state().role, this._state().merchantId)),
+      tap((res) => this.applyTokenResponse(res, this._state().role)),
       catchError((error: unknown) => {
         this.revokeAndLogout().subscribe({ error: () => undefined });
         return throwError(() => error);
@@ -102,12 +113,13 @@ export class AuthService {
     return this.login(role, merchantId);
   }
 
-  private applyTokenResponse(res: TokenResponse, role: Role | null, merchantId: string | null): void {
+  private applyTokenResponse(res: TokenResponse, role: Role | null): void {
+    const claims = decodeJwtPayload<AccessTokenClaims>(res.accessToken);
     this._state.set({
       accessToken: res.accessToken,
       refreshToken: res.refreshToken,
       role,
-      merchantId: role === 'MERCHANT' ? merchantId : null,
+      merchantId: claims?.merchantId ?? null,
       expiresAt: Date.now() + res.expiresIn * 1000,
     });
   }
