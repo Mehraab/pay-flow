@@ -100,6 +100,14 @@
     </div>
   }
 
+  @if (!entriesLoading() && !entriesError() && entries().length > 0) {
+    <app-pagination
+      [currentPage]="entriesPage()"
+      [totalPages]="entriesTotalPages()"
+      (pageChange)="onEntriesPageChange($event)"
+    />
+  }
+
   @if (entriesEmpty()) {
     <div class="empty-state">
       <b>No ledger entries yet</b>

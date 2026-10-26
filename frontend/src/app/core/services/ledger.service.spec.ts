@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { environment } from '../../../environments/environment';
-import { LedgerEntryResponse, MerchantBalances, PayoutResponse, PlatformAccountCard } from '../models';
+import { LedgerEntryResponse, MerchantBalances, PageResponse, PayoutResponse, PlatformAccountCard } from '../models';
 import { LedgerService } from './ledger.service';
 
 describe('LedgerService', () => {
@@ -68,15 +68,15 @@ describe('LedgerService', () => {
     expect(result?.find((c) => c.label === 'Provider Settlement')?.isMocked).toBe(true);
   });
 
-  it('getLedgerEntries unwraps PageResponse.content', () => {
-    let result: LedgerEntryResponse[] | undefined;
+  it('getLedgerEntries calls the real paginated endpoint and returns the full PageResponse (page metadata survives for the pager)', () => {
+    let result: PageResponse<LedgerEntryResponse> | undefined;
     service.getLedgerEntries().subscribe((r) => (result = r));
 
     const req = httpMock.expectOne(
       (r) => r.url === `${environment.apiBase}/operator/ledger/entries` && r.method === 'GET',
     );
     expect(req.request.params.get('page')).toBe('0');
-    expect(req.request.params.get('size')).toBe('50');
+    expect(req.request.params.get('size')).toBe('20');
     req.flush({
       content: [
         {
@@ -90,13 +90,25 @@ describe('LedgerService', () => {
         },
       ],
       page: 0,
-      size: 50,
-      totalElements: 1,
-      totalPages: 1,
+      size: 20,
+      totalElements: 45,
+      totalPages: 3,
     });
 
-    expect(result?.length).toBe(1);
-    expect(result?.[0].status).toBe('POSTED');
+    expect(result?.content.length).toBe(1);
+    expect(result?.content[0].status).toBe('POSTED');
+    expect(result?.totalPages).toBe(3);
+    expect(result?.totalElements).toBe(45);
+  });
+
+  it('getLedgerEntries passes an explicit page number through to the request', () => {
+    service.getLedgerEntries({ page: 2 }).subscribe();
+
+    const req = httpMock.expectOne(
+      (r) => r.url === `${environment.apiBase}/operator/ledger/entries` && r.method === 'GET',
+    );
+    expect(req.request.params.get('page')).toBe('2');
+    req.flush({ content: [], page: 2, size: 20, totalElements: 45, totalPages: 3 });
   });
 
   it('getMerchantBalances joins the two real merchant account balances', () => {
@@ -150,15 +162,15 @@ describe('LedgerService', () => {
     expect(result?.length).toBe(1);
   });
 
-  it('getMerchantLedgerEntries calls the real paginated endpoint and unwraps PageResponse.content', () => {
-    let result: LedgerEntryResponse[] | undefined;
+  it('getMerchantLedgerEntries calls the real paginated endpoint and returns the full PageResponse (page metadata survives for the pager)', () => {
+    let result: PageResponse<LedgerEntryResponse> | undefined;
     service.getMerchantLedgerEntries('m1').subscribe((r) => (result = r));
 
     const req = httpMock.expectOne(
       (r) => r.url === `${environment.apiBase}/ledger/merchants/m1/entries` && r.method === 'GET',
     );
     expect(req.request.params.get('page')).toBe('0');
-    expect(req.request.params.get('size')).toBe('50');
+    expect(req.request.params.get('size')).toBe('20');
     req.flush({
       content: [
         {
@@ -172,13 +184,25 @@ describe('LedgerService', () => {
         },
       ],
       page: 0,
-      size: 50,
-      totalElements: 1,
-      totalPages: 1,
+      size: 20,
+      totalElements: 45,
+      totalPages: 3,
     });
 
-    expect(result?.length).toBe(1);
-    expect(result?.[0].transactionRef).toBe('t1');
+    expect(result?.content.length).toBe(1);
+    expect(result?.content[0].transactionRef).toBe('t1');
+    expect(result?.totalPages).toBe(3);
+    expect(result?.totalElements).toBe(45);
+  });
+
+  it('getMerchantLedgerEntries passes an explicit page number through to the request', () => {
+    service.getMerchantLedgerEntries('m1', { page: 2 }).subscribe();
+
+    const req = httpMock.expectOne(
+      (r) => r.url === `${environment.apiBase}/ledger/merchants/m1/entries` && r.method === 'GET',
+    );
+    expect(req.request.params.get('page')).toBe('2');
+    req.flush({ content: [], page: 2, size: 20, totalElements: 45, totalPages: 3 });
   });
 
   it('requestPayout POSTs to /payouts with the merchantId', () => {

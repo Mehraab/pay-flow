@@ -2,9 +2,10 @@ import { DatePipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { timer } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
-import { LedgerEntryResponse, MerchantBalances, PayoutResponse } from '../../core/models';
+import { LedgerEntryResponse, MerchantBalances, PageResponse, PayoutResponse } from '../../core/models';
 import { AuthService } from '../../core/services/auth.service';
 import { LedgerService } from '../../core/services/ledger.service';
+import { Pagination } from '../../shared/components/pagination/pagination';
 import { initialViewState, ViewState } from '../../shared/state/view-state';
 import { extractErrorMessage } from '../../shared/utils/http-error';
 import { formatMoney } from '../../shared/utils/money';
@@ -15,7 +16,7 @@ const TERMINAL_PAYOUT_STATUSES = new Set(['SETTLED', 'FAILED']);
 const NO_MERCHANT_ID_MESSAGE = 'No merchant ID on this session — sign in with a merchant ID to see your ledger.';
 
 @Component({
-  imports: [DatePipe],
+  imports: [DatePipe, Pagination],
   selector: 'app-ledger',
   styleUrl: './ledger.css',
   templateUrl: './ledger.html',
@@ -27,8 +28,10 @@ export class Ledger {
   private readonly merchantId = computed(() => this.authService.merchantId() ?? '');
 
   private readonly balancesState = signal<ViewState<MerchantBalances>>(initialViewState());
-  private readonly entriesState = signal<ViewState<LedgerEntryResponse[]>>(initialViewState());
+  private readonly entriesState = signal<ViewState<PageResponse<LedgerEntryResponse>>>(initialViewState());
   private readonly payoutState = signal<ViewState<PayoutResponse>>({ loading: false, error: null, data: null });
+
+  protected readonly entriesPage = signal(0); // 0-indexed, matches PageResponse.page
 
   protected readonly balancesLoading = computed(() => this.balancesState().loading);
   protected readonly balancesError = computed(() => this.balancesState().error);
@@ -36,7 +39,8 @@ export class Ledger {
 
   protected readonly entriesLoading = computed(() => this.entriesState().loading);
   protected readonly entriesError = computed(() => this.entriesState().error);
-  protected readonly entries = computed(() => this.entriesState().data ?? []);
+  protected readonly entries = computed(() => this.entriesState().data?.content ?? []);
+  protected readonly entriesTotalPages = computed(() => this.entriesState().data?.totalPages ?? 0);
   protected readonly entriesEmpty = computed(
     () => !this.entriesLoading() && !this.entriesError() && this.entries().length === 0,
   );
@@ -77,7 +81,7 @@ export class Ledger {
     const merchantId = this.merchantId();
     if (!merchantId) return;
     this.entriesState.set(initialViewState());
-    this.ledgerService.getMerchantLedgerEntries(merchantId).subscribe({
+    this.ledgerService.getMerchantLedgerEntries(merchantId, { page: this.entriesPage() }).subscribe({
       next: (data) => this.entriesState.set({ loading: false, error: null, data }),
       error: (err) =>
         this.entriesState.set({
@@ -86,6 +90,13 @@ export class Ledger {
           data: null,
         }),
     });
+  }
+
+  // Explicit re-fetch on click, not an effect() watching entriesPage — keeps the same
+  // "no signal writes inside effect()" discipline the app has held since Task 1.
+  protected onEntriesPageChange(page: number): void {
+    this.entriesPage.set(page);
+    this.loadEntries();
   }
 
   protected requestPayout(): void {

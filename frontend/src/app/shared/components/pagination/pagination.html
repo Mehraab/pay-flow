@@ -1,0 +1,34 @@
+@if (totalPages() > 1) {
+  <nav class="pagination" aria-label="Pagination">
+    <div class="page-buttons">
+      @for (item of windowItems(); track $index) {
+        @if (item.kind === 'page') {
+          <button
+            type="button"
+            class="chip"
+            [class.active]="item.page === currentPage()"
+            [class.adjacent]="isAdjacent(item.page)"
+            [attr.aria-current]="item.page === currentPage() ? 'page' : null"
+            (click)="goTo(item.page)"
+          >
+            {{ item.page + 1 }}
+          </button>
+        } @else {
+          <span class="ellipsis">…</span>
+        }
+      }
+    </div>
+
+    <form class="jump-form" (submit)="$event.preventDefault(); submitJump()">
+      <label for="jumpToPage">Go to page</label>
+      <input
+        id="jumpToPage"
+        type="number"
+        min="1"
+        [attr.max]="totalPages()"
+        [value]="jumpValue()"
+        (input)="onJumpInput($any($event.target).value)"
+      />
+    </form>
+  </nav>
+}
