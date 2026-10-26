@@ -19,7 +19,7 @@ export interface ListLedgerEntriesFilter {
   size?: number;
 }
 
-const DEFAULT_ENTRIES_SIZE = 50;
+const DEFAULT_ENTRIES_SIZE = 20;
 
 // Real platform accounts seeded by PlatformAccountSeeder.java, with the AccountType each
 // was seeded as — reachable via GET /accounts/{accountName}/balance (not operator-gated,
@@ -69,15 +69,17 @@ export class LedgerService {
     return forkJoin(realCards$).pipe(map((cards) => [...cards, ...MOCKED_PLATFORM_CARDS]));
   }
 
-  /** REAL: GET /operator/ledger/entries (BE-06) — the platform-wide double-entry log. */
-  getLedgerEntries(filter: ListLedgerEntriesFilter = {}): Observable<LedgerEntryResponse[]> {
+  /**
+   * REAL: GET /operator/ledger/entries (BE-06) — the platform-wide double-entry log.
+   * Returns the full PageResponse — page/totalPages/totalElements survive to the
+   * caller (Task 12's pager needs them), matching getMerchantLedgerEntries().
+   */
+  getLedgerEntries(filter: ListLedgerEntriesFilter = {}): Observable<PageResponse<LedgerEntryResponse>> {
     let params = new HttpParams().set('page', filter.page ?? 0).set('size', filter.size ?? DEFAULT_ENTRIES_SIZE);
     if (filter.since) {
       params = params.set('since', filter.since);
     }
-    return this.http
-      .get<PageResponse<LedgerEntryResponse>>(`${this.apiBase}/operator/ledger/entries`, { params })
-      .pipe(map((res) => res.content));
+    return this.http.get<PageResponse<LedgerEntryResponse>>(`${this.apiBase}/operator/ledger/entries`, { params });
   }
 
   /**
@@ -113,16 +115,20 @@ export class LedgerService {
   /**
    * REAL: GET /ledger/merchants/{merchantId}/entries (BE-09) — merchant-wide ledger
    * feed across multiple transactions (unlike GET /ledger, which is scoped to one
-   * transactionRef). Paginated; unwraps PageResponse.content like the other paginated
-   * calls.
+   * transactionRef). Returns the full PageResponse — page/totalPages/totalElements
+   * survive to the caller (Task 11's pager needs them).
    */
-  getMerchantLedgerEntries(merchantId: string, filter: ListLedgerEntriesFilter = {}): Observable<LedgerEntryResponse[]> {
+  getMerchantLedgerEntries(
+    merchantId: string,
+    filter: ListLedgerEntriesFilter = {},
+  ): Observable<PageResponse<LedgerEntryResponse>> {
     const params = new HttpParams()
       .set('page', filter.page ?? 0)
       .set('size', filter.size ?? DEFAULT_ENTRIES_SIZE);
-    return this.http
-      .get<PageResponse<LedgerEntryResponse>>(`${this.apiBase}/ledger/merchants/${merchantId}/entries`, { params })
-      .pipe(map((res) => res.content));
+    return this.http.get<PageResponse<LedgerEntryResponse>>(
+      `${this.apiBase}/ledger/merchants/${merchantId}/entries`,
+      { params },
+    );
   }
 
   /** REAL: POST /payouts */

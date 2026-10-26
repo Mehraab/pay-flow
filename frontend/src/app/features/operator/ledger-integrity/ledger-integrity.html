@@ -120,4 +120,12 @@
       </table>
     </div>
   }
+
+  @if (!entriesLoading() && !entriesError() && entries().length > 0) {
+    <app-pagination
+      [currentPage]="entriesPage()"
+      [totalPages]="entriesTotalPages()"
+      (pageChange)="onEntriesPageChange($event)"
+    />
+  }
 </div>

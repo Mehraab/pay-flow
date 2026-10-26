@@ -1,0 +1,57 @@
+/* .chip/.chip.active live in the global stylesheet (the same ones Transactions'
+   status filter already uses) — only the adjacent-page dimming and layout are new. */
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.page-buttons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.chip.adjacent {
+  opacity: 0.55;
+  font-weight: 500;
+}
+
+.ellipsis {
+  color: var(--faint);
+  font-size: 12.5px;
+  padding: 0 2px;
+}
+
+.jump-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.jump-form label {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.jump-form input {
+  width: 64px;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12.5px;
+  font-family: inherit;
+}
+
+.jump-form input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
