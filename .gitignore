@@ -29,7 +29,6 @@ Thumbs.db
 .env.local
 
 # Planning/reference docs kept locally for this project but never pushed to the repo
-/ARCHITECTURE_AND_PLAN.md
 /PayFlow Console.html
 /PayFlow Architecture.html
 /PayFlow — Business Requirements Document.docx

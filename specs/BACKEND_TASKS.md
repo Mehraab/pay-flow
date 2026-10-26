@@ -157,6 +157,117 @@ compounding issues in the source map).
 
 ---
 
+## BE-09 — Merchant-wide ledger entries feed (`payflow-ledger-service`)
+**Unblocks**: the Ledger view's double-entry log table (`#view-ledger` in
+`PayFlow Console.html`), scoped to Task 8 in `FRONTEND_TASKS.md`.
+
+- No endpoint returns all ledger entries for one merchant across multiple
+  transactions. Confirmed directly against `LedgerController.java`:
+  `GET /ledger?transaction=...` (`entriesForTransaction`) is scoped to a single
+  `transactionRef`, and `GET /operator/ledger/entries` (BE-06, `listLedgerEntries`) is
+  platform-wide, `ROLE_OPERATOR`-only, with no merchant filter param at all.
+- Add `GET /ledger/merchants/{merchantId}/entries` (or similar), gateway-routed under
+  the merchant-accessible space, `ROLE_MERCHANT`-scoped to the caller's own
+  `X-Merchant-Id`, paginated.
+- Reuse the existing `LedgerEntryResponse` shape (already carries `status` since
+  BE-06) — don't reinvent the DTO.
+
+**Severity**: 🔴 (map §"Ledger (merchant)" — double-entry log still only answerable one
+`transactionRef` at a time; no merchant-wide feed exists anywhere).
+
+---
+
+## BE-10 — Merchant payout history (`payflow-ledger-service`)
+**Unblocks**: the Ledger view showing more than just the single most-recently-requested
+payout.
+
+- No endpoint lists a merchant's payouts. Confirmed directly against
+  `PayoutController.java`: it only has `POST /payouts` (create), `GET /payouts/{id}`
+  (single, by id), and `POST /payouts/sweep` (all-merchants batch).
+- Add `GET /payouts?merchantId=...` (or `GET /payouts/merchants/{merchantId}`),
+  gateway-routed, `ROLE_MERCHANT`-scoped.
+- Reuse the existing `PayoutResponse` DTO — don't reinvent it.
+
+**Severity**: 🟡 (map §"Ledger (merchant)" — "Request Payout" already works for a
+single payout; there's no way to list history beyond the one most recently created).
+
+---
+
+## BE-11 — Payout failure returns a bare 500 with no error detail (`payflow-ledger-service`) [COMPLETED]
+**Status**: ✅ **Complete** (Commit `6e892dd`)
+**Unblocks**: any FE surface calling `POST /payouts` needs to show *why* a payout
+request failed (e.g. "no available balance") instead of a generic failure toast.
+
+- **Repro**: `POST /payouts` for a merchant with `balanceMinor <= 0` throws
+  `IllegalStateException("No available balance for payout")` from
+  `LedgerPostingService.createPayout` (`LedgerPostingService.java:134`). Nothing in
+  `payflow-ledger-service` catches it, and there is no `@ControllerAdvice` anywhere in
+  the service, so it falls through to Spring Boot's default `BasicErrorController`.
+  The FE gets:
+  ```json
+  { "timestamp": "...", "status": 500, "error": "Internal Server Error", "path": "/payouts" }
+  ```
+  with the actual message dropped — Spring Boot defaults `server.error.include-message`
+  to `never` (Boot 2.3+), and `application.yml` has no override. This isn't a gateway
+  relay bug: the gateway (when BE-01 wires `/payouts` through it) just copies the
+  downstream status/body unchanged, so the generic body originates in the ledger
+  service itself.
+- **Fix**: add a `@RestControllerAdvice` to `payflow-ledger-service` that maps domain
+  exceptions to proper HTTP responses with a message body, e.g. `IllegalStateException`
+  from `createPayout` → `409 { "error": "No available balance for payout" }` (409, not
+  500 — this is a client-triggerable state, not a server fault). Keep the message
+  scoped to known domain exceptions; don't flip `server.error.include-message` to
+  `always` globally, since that would leak internals for *every* unhandled exception
+  service-wide.
+- Audit other `IllegalStateException`/`NoSuchElementException` throw sites in
+  `LedgerPostingService`/`LedgerController`/`PayoutController` while adding the advice,
+  so this doesn't become a one-exception-type fix that leaves the rest of the service's
+  error paths just as opaque.
+
+**Severity**: 🟠 (Closed).
+
+---
+
+## BE-12 — No common error-response shape across services (platform-wide) [COMPLETED]
+**Status**: ✅ **Complete** (Commits `bf1bd60`, `11104ef`)
+**Unblocks**: predictable FE error handling — one response-parsing path for every
+failed call, instead of branching per endpoint on what shape of body (if any) comes back.
+
+- **Current state, confirmed by grepping all six services**: there is no shared
+  `ErrorResponse`/`ApiError`/`ProblemDetail` type anywhere in `payflow-common`, and no
+  single pattern is followed. Four different shapes exist side by side today:
+  - Spring Boot's default `{timestamp, status, error, path}` with **no message** —
+    every uncaught exception in every service (this was the entire BE-11 bug before
+    its fix).
+  - `{"error": "<message>"}` via ad hoc `Map.of(...)` literals — `AuthController` and
+    `JwtAuthenticationFilter` in `payflow-api-gateway`, and now `LedgerExceptionHandler`
+    in `payflow-ledger-service` (BE-11). These happen to agree on shape by coincidence,
+    not because either was written against a shared contract.
+  - **Empty body, status code only** — arguably the worst case, since there's nothing
+    to show the user at all: `LedgerController`/`PayoutController`'s plain
+    `ResponseEntity.notFound().build()` 404s, same in `PaymentQueryController`,
+    `WebhookDlqController`, `ProviderRoutingController`; plus `PayoutController
+    .listPayouts`'s `400`/`403` and `LedgerController.merchantLedgerEntries`'s `403`.
+  - Raw relayed bytes at the gateway — `PaymentGatewayController` just forwards
+    whatever shape/status the downstream service already sent, so standardizing
+    downstream automatically standardizes what the gateway relays; no gateway change
+    needed for this ticket.
+- **Fix, implemented shape**: a shared record in `payflow-common` (`dev.payflow.common.dto.ErrorResponse`):
+  `ErrorResponse(String error, int status, Instant timestamp)`.
+  Notice `path` was explicitly dropped to prevent internal gateway microservice routing leakage and redundant transport data.
+  Each service maintains its own `@RestControllerAdvice` mapping domain exceptions (`400`, `401`, `403`, `404`, `409`) to this uniform DTO.
+- **Also in scope**: replaced every bare `notFound().build()` / `badRequest().build()` /
+  `status(403).build()` call site across all controllers with the structured `ErrorResponse` body.
+- **Out of scope for this ticket**: don't touch `server.error.include-message` or add a
+  blanket `Exception.class`/`RuntimeException.class` handler per service — per BE-11,
+  that would leak internals (stack traces, class names) for failure modes that are
+  genuine server faults or data-integrity violations, not predictable client-triggerable
+  conditions. Keep each service's advice scoped to named/known exception types.
+
+**Severity**: 🟠 (Closed).
+
+---
+
 ## Explicitly deferred — product decisions, not backend tickets
 
 These came up in the gap analysis but need a product/design decision before they're

@@ -56,9 +56,9 @@ One `Routes` array in `app.routes.ts`. Role-gated children under a layout route:
   /transactions/:id              (merchantGuard)   -- detail is a routed view, not a modal,
                                                         to support deep-linking/back button,
                                                         matching the HTML's own back-link pattern
-  /ledger                        (merchantGuard)
+  /ledger                        (merchantGuard)   -- Task 8
   /sandbox                       (merchantGuard)   -- Task 4, see caveat there
-  /developers                    (merchantGuard)
+  /developers                    (merchantGuard)   -- Task 8
   /operator/integrity            (operatorGuard)
   /operator/providers            (operatorGuard)
   /operator/saga-events           (operatorGuard)
@@ -470,7 +470,426 @@ and fail independently (matches Task 3's detail/timeline split).
 
 ---
 
-## Cross-cutting items validated at the end of Task 7 (not a separate task)
+## Task 8 — Merchant Portal: Ledger & Developers
+
+**Context**: a post-Task-7 audit against `PayFlow Console.html`'s own view sections
+(`grep -n 'id="view-'`) found 8 distinct views; Tasks 1–7 only ever assigned 6 of them.
+`#view-ledger` (merchant Ledger — payable/in-transit balances, double-entry log,
+Request Payout) and `#view-developers` (API keys, webhook URL, recent deliveries) were
+never covered — a gap in this plan's original scoping, not an execution miss. Both
+routes and nav entries already exist (`/ledger`, `/developers`) and currently render
+`PlaceholderView`; this task replaces them with real components.
+
+The backend has moved since `BACKEND_TASKS.md` was first written: `GET
+/accounts/{merchantId}/{accountName}/balance`, `POST /payouts`, `GET /payouts/{id}`,
+`GET /ledger?transaction=...`, and `GET /webhooks/deliveries` (BE-08) are all
+gateway-routed now — confirmed directly against `PaymentGatewayController.java` and the
+downstream `LedgerController`/`PayoutController`/`NotificationController` sources. Most
+of this task is REAL, not STUB. Two gaps remain genuinely open and need new backend
+tickets (add both to `BACKEND_TASKS.md` when this task is picked up):
+
+- **BE-09** — no endpoint returns all ledger entries for one merchant across multiple
+  transactions. `GET /ledger?transaction=...` is scoped to a single `transactionRef`;
+  `/operator/ledger/entries` (BE-06) is platform-wide, operator-only, and has no
+  merchant filter. Needed for the Ledger view's double-entry log table.
+- **BE-10** — no endpoint lists a merchant's payout history. `PayoutController` only has
+  create (`POST /payouts`), get-by-id (`GET /payouts/{id}`), and sweep-all-merchants
+  (`POST /payouts/sweep`) — nothing merchant-scoped and plural.
+
+### `LedgerService` additions
+- `getMerchantBalances(merchantId)` — **REAL**, two parallel calls to `GET
+  /accounts/{merchantId}/{accountName}/balance` (`accountName` = `"Merchant Payable"`
+  and `"Payout In-Transit"` — the exact names seeded by `LedgerAccountService`), joined
+  with `forkJoin` into one view-model, same pattern as Task 5's
+  `getPlatformAccountCards()`.
+- `getLedgerEntriesForTransaction(transactionRef)` — **REAL** `GET
+  /ledger?transaction=...`, reusing the `LedgerEntryResponse` type from Task 5.
+- `getMerchantLedgerEntries(merchantId)` — **STUB(BE-09)**. Same `LedgerEntryResponse[]`
+  shape as the real type, so flipping this to real later is a one-line body change with
+  no caller-side impact, per the Service Adapter convention.
+- `requestPayout(merchantId)` — **REAL** `POST /payouts`.
+- `getPayout(id)` — **REAL** `GET /payouts/{id}`, used to poll the just-requested
+  payout's status.
+
+### `LedgerComponent` (`features/ledger/ledger.ts`)
+**Signal state**:
+```ts
+private balancesState = signal<ViewState<{ payableMinor: number; transitMinor: number }>>(initialViewState());
+private entriesState = signal<ViewState<LedgerEntryResponse[]>>(initialViewState());
+private payoutState = signal<ViewState<PayoutResponse>>({ loading: false, error: null, data: null });
+```
+Three independent `ViewState`s, matching Task 5's Ledger Integrity split — balances,
+the entry log, and the payout action load/fail independently.
+
+**Request Payout flow** mirrors Task 3's refund pattern exactly: call
+`requestPayout(merchantId)`, then poll `getPayout(id)` on an interval (e.g. every 2s,
+capped attempts) until `status` reaches a terminal value, narrating "In-Transit…" while
+polling rather than optimistically jumping to "Settled" — the HTML's existing
+`setTimeout`-faked 2.4s transition is exactly the anti-pattern the map already called
+out for the refund button; the same fix applies here.
+
+- **Loading**: skeleton balance cards + skeleton entry rows.
+- **Error**: independent retry banners for balances vs. the entry log; a failed payout
+  request shows its own inline error without disturbing the balance cards.
+- **Empty**: entry log empty state ("No ledger entries yet") when `entriesState().data`
+  is `[]` — realistic for a merchant with no settled transactions.
+- **Success**: both balance cards (Merchant payable, Payout in-transit) with real
+  balances; the double-entry log table — **STUB(BE-09)** until that ships, rendered
+  with the same honest `isMocked`-style treatment Task 5 used for its two mocked
+  platform cards, never silently passed off as real; "Request Payout" button, disabled
+  while a request is in flight.
+
+### `DevelopersComponent` (`features/developers/developers.ts`)
+#### `OperatorService` addition (despite the merchant-only scope — see note)
+- `listWebhookDeliveries(merchantId)` — **REAL** `GET /webhooks/deliveries` (BE-08,
+  confirmed gateway-routed; requires `X-Merchant-Id`, which the gateway injects
+  automatically for `ROLE_MERCHANT` callers, so no manual header needed client-side).
+  Placed on `OperatorService` rather than a new fifth service, since that's already the
+  adapter's home for `/webhooks/**` calls (Task 6's DLQ methods) and the Conventions
+  fix the adapter layer at exactly four services — a naming mismatch (a merchant-facing
+  call living on "Operator"Service) is the accepted tradeoff over growing a fifth
+  service for one method.
+
+**Signal state**:
+```ts
+private deliveriesState = signal<ViewState<WebhookDeliveryResponse[]>>(initialViewState());
+```
+Reuses the `WebhookDeliveryResponse` type from Task 6 — confirmed byte-for-byte
+identical shape on the real `/webhooks/deliveries` response.
+
+- **API keys panel**: no backend concept exists at all (`BACKEND_TASKS.md`'s
+  "Explicitly deferred" section — JWT bearer-token auth has no per-merchant key-pair
+  model). Render static, clearly-labeled mock data (e.g. one test key, one live key,
+  captioned "Mocked — no backend concept yet"), the same honesty treatment the
+  Environment toggle got in Task 2 — not wired to any service method, since there is
+  nothing to wire to.
+- **Webhook endpoint URL**: same treatment — static display + a "Copy URL" button
+  (clipboard write only, no network call), captioned as mocked. No registration
+  endpoint exists (same deferred list).
+
+**4 UI states** (apply to the "Recent deliveries" table only — the API-keys and
+webhook-URL panels are static mock content, not async views, so Loading/Error/Empty
+don't apply to them; stated explicitly rather than skipped silently, same as Task 4's
+Empty-state call):
+- **Loading**: skeleton rows.
+- **Error**: retry banner.
+- **Empty**: "No webhook deliveries yet."
+- **Success**: table (event type, status, attempt count, delivered/attempted time)
+  pulling real merchant-scoped data — unlike the operator DLQ view, this one isn't
+  limited to dead-lettered rows.
+
+---
+
+## Task 9 — Logout Button & Browser Tab Branding
+
+**Context**: two small, user-requested gaps, neither covered by the original HTML
+mockup (so there's no `PayFlow Console.html` section to port from — these are net-new
+beyond that source):
+
+1. `AuthService.revokeAndLogout()` has existed since Task 1, but **nothing in the UI
+   ever calls it** — confirmed by grepping every `.html`/`.ts` file for the method
+   name: its only call sites are internal (the interceptor's failed-refresh path).
+   There is currently no way for a user to voluntarily sign out.
+2. The browser tab still shows the Angular CLI's default scaffold branding —
+   `index.html`'s `<title>` is the generic `PayflowConsole` and the favicon is the
+   default `favicon.ico` Angular generates on `ng new`, not the PayFlow mark used
+   throughout the app itself (the rounded-square-outline-plus-chevron SVG, confirmed
+   inlined in exactly two places today — `sign-in.html` and `app-shell.html`'s rail
+   head — via `grep -rl 'viewBox="0 0 26 26"' frontend/src/app`).
+
+### Logout button
+No new service method needed — `AuthService.revokeAndLogout()` already does the full
+job (POST `/auth/revoke`, clears `_state`/`sessionStorage`, navigates to `/signin`,
+all in its own `finalize()`). This task is UI-only.
+
+- **Placement**: `AppShell`'s `rail-foot` block (`app-shell.html`), next to the
+  existing identity display (`roleLabel()`/`identityLabel()`) — the natural extension
+  of where identity already lives, not a new header element.
+- **Component change**: add to `AppShell` (or a new tiny `LogoutButton` sub-component
+  if `AppShell` is getting crowded — judgment call, either is fine):
+  ```ts
+  protected readonly signingOut = signal(false);
+  protected signOut(): void {
+    if (this.signingOut()) return;
+    this.signingOut.set(true);
+    this.authService.revokeAndLogout().subscribe({
+      error: () => this.signingOut.set(false), // finalize() still navigates away even on error
+    });
+  }
+  ```
+  Mirrors `RoleSwitcher`'s existing `switching` signal pattern exactly — same
+  disable-while-in-flight shape, nothing new architecturally.
+- **No confirm() dialog** — matches this codebase's established convention (the real
+  refund button in `TransactionDetail` doesn't use one either, unlike the original
+  static HTML's `confirm()`; this app relies on clear button labeling instead). Keep
+  logout consistent with that, not with the HTML mockup's abandoned pattern.
+- **4 UI states**: N/A — this is a single fire-and-forget action with no data to
+  load/empty, same category as the Role Switcher in Task 2. The only state is the
+  button's own disabled-while-in-flight flag.
+
+### Browser tab branding
+- Export the existing inline SVG mark (same geometry already duplicated in
+  `sign-in.html`/`app-shell.html`: `viewBox="0 0 26 26"`, rounded-square outline +
+  chevron path) to a standalone `public/favicon.svg`, and reference it in
+  `index.html` via `<link rel="icon" type="image/svg+xml" href="favicon.svg">`
+  (modern-browser SVG favicon support — no external image-conversion tooling needed,
+  unlike regenerating the `.ico`). Keep the existing `favicon.ico` as a secondary
+  `rel="alternate icon"` for any browser that doesn't support SVG favicons, rather
+  than deleting it outright.
+- Update `<title>` from `PayflowConsole` to `PayFlow` — matching the wordmark as it
+  actually appears everywhere else in the app's own chrome (the rail head's
+  `<span>PayFlow</span>`, sign-in's brand mark), not a longer "...Console" variant
+  invented for the tab title alone.
+- **Explicitly out of scope for this task** (flagging so it isn't assumed included):
+  per-route dynamic tab titles (e.g. "PayFlow · Transactions") — not what was asked;
+  a static brand title is the full scope here. If per-route titles are wanted later,
+  that's a separate, small follow-up via `Title` service + `HeaderBar`'s existing
+  route-data read.
+
+---
+
+## Task 10 — Surface Real Backend Error Messages (BE-11/BE-12)
+
+**Context**: BE-11/BE-12 shipped (commits `6e892dd`, `bf1bd60`, `11104ef`) — every error
+response across the platform now returns a uniform body,
+`ErrorResponse { error: string, status: number, timestamp: string }`. Confirmed
+directly against the source, not assumed: the shared record lives in
+`payflow-common/.../dto/ErrorResponse.java`, and four new `@RestControllerAdvice`
+classes (`LedgerExceptionHandler`, `PaymentQueryExceptionHandler`,
+`NotificationExceptionHandler`, `PaymentCommandExceptionHandler`) plus inline
+`ErrorResponse.of(...)` call sites in `AuthController`, `JwtAuthenticationFilter`,
+`LedgerController`, `PayoutController`, and `ProviderRoutingController` all emit it —
+a `grep` across every service's `main` tree turned up zero remaining bare
+`.build()`/`Map.of(...)` error bodies. The gateway's `relay()` method is a raw
+byte-passthrough (status/content-type/body all forwarded unchanged), so this reaches
+the browser exactly as each service wrote it — no gateway-side change needed.
+
+Before this, every one of the Angular app's ~26 HTTP error handlers discarded
+whatever the backend actually said and showed a hardcoded per-view string (e.g.
+"Couldn't request a payout — try again." even when the real reason — "No available
+balance for payout" — was sitting right there in the response body, now that BE-11
+put it there deliberately). That's no longer defensible once a reliable contract
+exists to read. This task is a pure plumbing fix — **same `ViewState` shape, same
+banners, same components** — just smarter message sourcing. Not a UI redesign.
+
+### New shared model + utility (this is the one new abstraction — keep it this thin)
+- `core/models/error-response.model.ts`:
+  ```ts
+  export interface ErrorResponse {
+    error: string;
+    status: number;
+    timestamp: string;
+  }
+  ```
+- `shared/utils/http-error.ts`:
+  ```ts
+  export function extractErrorMessage(err: unknown, fallback: string): string {
+    if (err instanceof HttpErrorResponse && isErrorResponse(err.error)) {
+      return err.error.error;
+    }
+    return fallback;
+  }
+
+  function isErrorResponse(body: unknown): body is ErrorResponse {
+    return typeof body === 'object' && body !== null && typeof (body as any).error === 'string';
+  }
+  ```
+  Covers network failures, CORS errors, and any non-JSON body gracefully — falls back
+  to the caller's existing string rather than showing `undefined` or throwing.
+
+### Apply across every existing error call site
+Every `error: () => ...` handler that currently sets a hardcoded string onto a
+`ViewState.error` (or a component-level error signal, e.g. `SignIn.error`) gets that
+string moved to the `fallback` argument of `extractErrorMessage(err, fallback)`
+instead of being the only possible text. Confirmed via
+`grep -rn "error: ()" frontend/src/app/features frontend/src/app/layout` — every
+feature component has at least one site; **in scope**: `ledger.ts` (4 sites —
+balances/entries/payout-request/payout-poll), `transaction-detail.ts` (4 — payment
+load/timeline load/refund-submit/refund-poll), `overview.ts` (2), `ledger-integrity.ts`
+(3), `provider-routing.ts` (load + the toggle's existing `toggleErrors` inline
+message), `webhook-dlq.ts` (load), `saga-events.ts`, `transactions.ts`,
+`developers.ts`, `sign-in.ts`, `checkout-demo.ts` (2 — submit/poll).
+
+Two call sites are explicitly **out of scope** — flagging so they aren't assumed
+included, since fixing them properly needs a new UI surface, not just a string swap:
+- `role-switcher.ts`'s `switchTo()` error handler resets `switching` but shows nothing
+  anywhere — a role-switch failure is currently silent to the user. Needs a small
+  inline error affordance added first before `extractErrorMessage` has anywhere to put
+  its output.
+- `webhook-dlq.ts`'s per-row `retry()` error handler has the same gap — clears the
+  pending state with no inline message slot to fill.
+
+Worth a quick fast-follow once Task 10 lands, not blocking it — both are small, and
+each would reuse the exact pattern `provider-routing.ts`'s `toggleErrors` already
+established for per-row errors.
+
+**4 UI states**: N/A as a new category — this corrects the *content* of the existing
+Error state everywhere, adds no new state, no new signals beyond the two call sites
+noted above (which are follow-up work, not this task).
+
+---
+
+## Task 11 — Reusable Numbered Pagination (Ledger Double-Entry Log)
+
+**Context**: user-reported gap, not from the HTML mockup. The Ledger view's
+double-entry log table fetches a page of entries (`getMerchantLedgerEntries()`,
+page size now fixed at 20 per the user's own change to `DEFAULT_ENTRIES_SIZE`) but
+has **no pager UI at all** — the component discards the response's `page`/
+`totalPages`/`totalElements` and keeps only `.content`, so a merchant with more than
+20 ledger entries can never see entry 21 onward. Confirmed directly:
+`ledger.service.ts`'s `getMerchantLedgerEntries()` unwraps `PageResponse.content` and
+returns `Observable<LedgerEntryResponse[]>`, throwing the pagination metadata away
+before it ever reaches `LedgerComponent`.
+
+Requested shape: direct access to any page (not just next/prev), current page shown
+at full strength, the pages immediately next to it shown de-emphasized. Explicitly
+designed here to be **reusable** — a second, equally real candidate for the exact same
+gap already exists (`LedgerIntegrity`'s platform-wide double-entry log,
+`getLedgerEntries()`, same discard-the-metadata pattern) — noted below as a follow-up,
+not pulled into this task, to keep Task 11 scoped to one view's worth of wiring plus
+the shared piece both will eventually share.
+
+### Design
+
+**One new reusable, presentational component** — `shared/components/pagination/` —
+the first component in this codebase built as a true dumb/presentational unit with
+signal-based `input()`/`output()` rather than owning its own service calls. Every
+other component so far is "smart" (injects its own service); this one deliberately
+isn't, because the whole point is for `LedgerComponent` (and later, others) to own the
+page state and the fetch, while this component only renders page-number buttons and
+reports clicks:
+
+```ts
+@Component({ selector: 'app-pagination', ... })
+export class Pagination {
+  readonly currentPage = input.required<number>();   // 0-indexed, matches PageResponse.page
+  readonly totalPages = input.required<number>();
+  readonly pageChange = output<number>();
+
+  protected readonly windowItems = computed(() =>
+    buildPageWindow(this.currentPage(), this.totalPages()),
+  );
+
+  protected goTo(page: number): void {
+    if (page === this.currentPage() || page < 0 || page >= this.totalPages()) return;
+    this.pageChange.emit(page);
+  }
+}
+```
+
+**Pure utility, not component-internal logic** — `shared/utils/pagination.ts` +
+`pagination.spec.ts` (same split as `buildSparkline`/`formatDuration`/`applyFilters`
+elsewhere in this app — windowing math is exactly the kind of thing that belongs in
+an isolated, unit-testable function, not inline in a template or component method):
+
+```ts
+export type PageWindowItem = { kind: 'page'; page: number } | { kind: 'ellipsis' };
+
+export function buildPageWindow(currentPage: number, totalPages: number): PageWindowItem[] {
+  // Always include first (0) and last (totalPages-1) page, plus currentPage ± 1.
+  // Collapse any gap larger than 1 into a single ellipsis marker. 1-indexed display
+  // numbers are a template-level +1, not something this function needs to know about.
+}
+```
+
+**Visual treatment — direct answer to "page 1 and 3 should look slightly blurred"
+when on page 2**: interpreting "blurred" as *de-emphasized*, not a literal CSS `blur()`
+filter — blurring the actual digits would hurt legibility and make them harder to
+read before clicking, which fights the "go to any page" goal rather than serving it.
+Concretely:
+- Current page: reuses the existing `.chip.active` treatment already established for
+  Transactions' status filter (`--accent` background, full opacity) — not a new style.
+- Adjacent pages (current ± 1): same `.chip` shape, `opacity: 0.55`-ish and a lighter
+  weight — visually "there but secondary," clickable at full size (no shrinking — a
+  smaller touch target to save a little dimming isn't a good trade).
+- First/last page: always rendered even when far from the current page, per "go to any
+  page whenever," with an ellipsis (`…`) marker filling the gap — the standard pattern
+  for not rendering 40 buttons across 40 pages.
+- **A direct "Go to page" number input next to the numbered row** — clicking through
+  nearby numbers only gets a user to *adjacent* pages quickly; true "any page, whenever
+  he wants" on a large dataset needs a direct-entry escape hatch too. Small, inline,
+  submits on Enter.
+
+If "blurred" was meant literally (an actual `filter: blur()` on the non-current page
+numbers), flag that back — happy to build it that way instead, but recommending
+against it for the legibility reason above.
+
+### `LedgerService` change
+`getMerchantLedgerEntries()` stops unwrapping `.content` — returns
+`Observable<PageResponse<LedgerEntryResponse>>` instead of
+`Observable<LedgerEntryResponse[]>`, so `page`/`totalPages`/`totalElements` survive to
+the component. (`getLedgerEntriesForTransaction()` stays as-is — that one's never
+paginated, it's a small single-transaction result set by nature.)
+
+### `LedgerComponent` change
+```ts
+protected readonly entriesPage = signal(0);  // 0-indexed
+```
+`entriesState`'s `data` becomes the full `PageResponse<LedgerEntryResponse>` (or keep
+a parallel `entriesTotalPages` computed off it — component's call which reads
+cleaner). `loadEntries()` passes `{ page: this.entriesPage() }` to the service call.
+The `<app-pagination>` element sits below the table, inside the same `isSuccess`-style
+gate as the table itself, wired as
+`[currentPage]="entriesPage()" [totalPages]="..." (pageChange)="onEntriesPageChange($event)"`,
+where `onEntriesPageChange` sets `entriesPage` and calls `loadEntries()` again — explicit
+re-fetch on click, not an `effect()` watching the page signal (keeps the "no signal
+writes inside effect()" discipline this app has held since Task 1, and matches how
+every other data-reload-on-user-action flow already works here, e.g. `loadBalances()`/
+`loadEntries()`'s existing retry buttons).
+
+**4 UI states**: unchanged — same `entriesLoading`/`entriesError`/`entriesEmpty`
+computeds already built for this table in Task 8. Changing page re-enters the Loading
+state the same way a retry click already does; no new state category, no new ViewState
+shape beyond widening what `data` holds.
+
+### Explicitly flagged as a follow-up, not in this task
+`LedgerIntegrity`'s platform-wide double-entry log (`getLedgerEntries()`) has the
+identical discard-the-metadata gap and is the obvious next `<app-pagination>` consumer
+— same component, same utility, same wiring pattern, just a different service method
+and a different (operator-facing) table. Small follow-up once this lands, not bundled
+in here so Task 11 stays reviewable as one view's worth of change.
+
+---
+
+## Task 12 — Pagination Follow-Up: Ledger Integrity's Platform Double-Entry Log
+
+**Context**: the exact gap Task 11 fixed on the merchant Ledger view, confirmed to
+also exist on `LedgerIntegrity` — `ledger.service.ts`'s `getLedgerEntries()` (BE-06,
+`GET /operator/ledger/entries`) unwraps `PageResponse.content` and discards
+`page`/`totalPages`/`totalElements` exactly like `getMerchantLedgerEntries()` did
+before Task 11, and `ledger-integrity.ts`'s `entriesState` holds a bare
+`LedgerEntryResponse[]` with no pager anywhere in the template. No new component, no
+new utility — this task is purely applying Task 11's already-built, already-reviewed
+pieces to a second view.
+
+### `LedgerService` change
+`getLedgerEntries()` stops unwrapping `.content` — returns
+`Observable<PageResponse<LedgerEntryResponse>>`, same change as
+`getMerchantLedgerEntries()` got in Task 11. Signature otherwise unchanged
+(`since`/`page`/`size` filter stays as-is).
+
+### `LedgerIntegrity` change
+Same shape as `Ledger`'s own change in Task 11:
+- `entriesState` becomes `signal<ViewState<PageResponse<LedgerEntryResponse>>>`.
+- `entries`/`entriesTotalPages` computed off `.data?.content` / `.data?.totalPages`.
+- `entriesPage = signal(0)`, passed into `loadEntries()`'s call to the service.
+- `<app-pagination [currentPage]="entriesPage()" [totalPages]="entriesTotalPages()"
+  (pageChange)="onEntriesPageChange($event)" />` under the table, same gating
+  (`!entriesLoading() && !entriesError() && entries().length > 0`) as `ledger.html`
+  uses — import `Pagination` into the component's `imports` array.
+
+**4 UI states**: unchanged — same `entriesLoading`/`entriesError`/`entriesEmpty`
+computeds this view already has from Task 5, same as Task 11's note for `Ledger`: a
+page change re-enters Loading the same way the existing retry button already does, no
+new state category.
+
+**Explicitly not revisited in this task**: the integrity banner, the five platform
+account cards, and the balanced/unbalanced check above the table are untouched — this
+task is scoped to the double-entry log table only.
+
+---
+
+## Cross-cutting items validated at the end of Task 12 (not a separate task)
 
 - Confirm every STUB method in `PaymentService`/`LedgerService`/`OperatorService`
   carries a `// TODO: Wire to backend once BE-xx is merged` comment referencing the
