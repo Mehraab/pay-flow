@@ -21,40 +21,40 @@ PayFlow is designed with a **microservices topology featuring strict database-pe
 
 ```mermaid
 flowchart TD
-    Client["Merchant Checkout / Frontend Console (:4200)"] -->|1. REST / JWT| Gateway["payflow-api-gateway (:8080)\n(Edge Router & RBAC Filter)"]
-    Gateway -->|2. Ingest Payment| Cmd["payflow-payment-command-service (:8081)\n(Aggregate Root & Write Model)"]
+    Client["Merchant Checkout / Frontend Console (:4200)"] -->|"1. REST / JWT"| Gateway["payflow-api-gateway (:8080)\n(Edge Router & RBAC Filter)"]
+    Gateway -->|"2. Ingest Payment"| Cmd["payflow-payment-command-service (:8081)\n(Aggregate Root & Write Model)"]
 
     subgraph CommandContext ["Payment Command Context (Write Side)"]
-        Cmd -->|Atomic SETNX| Redis[("Redis 7.4\nIdempotency Key Store")]
-        Cmd -->|Pure Domain Logic| Domain["Payment Aggregate\n(Java 25 Sealed Records)"]
+        Cmd -->|"Atomic SETNX"| Redis[("Redis 7.4\nIdempotency Key Store")]
+        Cmd -->|"Pure Domain Logic"| Domain["Payment Aggregate\n(Java 25 Sealed Records)"]
         Domain --> OutboxRepo["PostgresPaymentRepository"]
-        OutboxRepo -->|Atomic JDBC Tx| PG_Pay[("payment_db (PostgreSQL)\npayments + outbox_events")]
+        OutboxRepo -->|"Atomic JDBC Tx"| PG_Pay[("payment_db (PostgreSQL)\npayments + outbox_events")]
         
-        Poller["OutboxPoller\n(Every 200ms SKIP LOCKED)"] -->|Tail outbox| PG_Pay
-        Poller -->|payment.captured| Kafka[("Kafka 3.9 (KRaft)\npayment.events topic")]
+        Poller["OutboxPoller\n(Every 200ms SKIP LOCKED)"] -->|"Tail outbox"| PG_Pay
+        Poller -->|"payment.captured"| Kafka[("Kafka 3.9 (KRaft)\npayment.events topic")]
     end
 
     Cmd -->|"3. Async Start (workflowId = paymentId)"| TemporalServer[("Temporal Server (:7233)")]
 
     subgraph OrchestrationContext ["Payment Orchestrator Context (Durable Saga)"]
-        TemporalServer -->|Poll Task Queue| Worker["payflow-payment-orchestrator (:8084)\n(Temporal Worker)"]
+        TemporalServer -->|"Poll Task Queue"| Worker["payflow-payment-orchestrator (:8084)\n(Temporal Worker)"]
         Worker --> WF["PaymentWorkflowImpl"]
         WF --> Act1["Activity: authorizeAndCapture()"]
         WF --> Act2["Activity: postToLedger()"]
         WF --> Act3["Activity: dispatchWebhook()"]
     end
 
-    Act1 -->|REST| Prov["payflow-provider-gateway-service (:8083)\n(Mock Processor & Card ACL)"]
-    Act1 -->|Transition to CAPTURED| Cmd
-    Act2 -->|Synchronous POST| Ledger["payflow-ledger-service (:8085)\n(Double-Entry Accounting)"]
+    Act1 -->|"REST"| Prov["payflow-provider-gateway-service (:8083)\n(Mock Processor & Card ACL)"]
+    Act1 -->|"Transition to CAPTURED"| Cmd
+    Act2 -->|"Synchronous POST"| Ledger["payflow-ledger-service (:8085)\n(Double-Entry Accounting)"]
     Ledger --> PG_Ledger[("ledger_db (PostgreSQL)\naccounts + ledger_entries")]
-    Act3 -->|Synchronous POST| Notify["payflow-notification-service (:8086)\n(Webhook Dispatch & DLQ)"]
+    Act3 -->|"Synchronous POST"| Notify["payflow-notification-service (:8086)\n(Webhook Dispatch & DLQ)"]
     Notify --> PG_Web[("webhook_db (PostgreSQL)\nwebhook_deliveries")]
 
     subgraph QueryContext ["Payment Query Context (Read Side / CQRS)"]
-        Kafka -->|KafkaListener| Consumer["PaymentEventConsumer"]
+        Kafka -->|"KafkaListener"| Consumer["PaymentEventConsumer"]
         Consumer --> ReadStore["PaymentViewStore\n(Denormalized Read Model)"]
-        Gateway -->|GET /api/v1/payments/{id}| Query["payflow-payment-query-service (:8082)"]
+        Gateway -->|"GET /api/v1/payments/:id"| Query["payflow-payment-query-service (:8082)"]
         Query --> ReadStore
     end
 ```
